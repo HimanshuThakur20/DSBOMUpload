@@ -73,3 +73,17 @@ def get_or_create_project(name, version):
 
     print(f"Creating new project '{name}' with version '{version}'...")
     return create_project(name, version)
+
+def get_latest_version(project_name):
+    """
+    Returns the latest version string for a given project name.
+    """
+    projects = get_projects()
+    versions = [p["version"] for p in projects if p["name"] == project_name]
+    if not versions:
+        return None
+    try:
+        return str(max(version.parse(v) for v in versions))
+    except Exception:
+        # fallback for non-semver
+        return sorted(versions)[-1]
