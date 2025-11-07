@@ -3,6 +3,7 @@ import sys
 import os
 from project import get_or_create_project, get_projects, get_latest_version
 from bom import upload_bom
+from validator import validate_bom_file
 from utils.cli_utils import ask_yes_no
 from utils.file_utils import file_exists
 from rich.console import Console
@@ -11,16 +12,21 @@ from packaging import version
 
 console = Console()
 
+
 def main():
     if len(sys.argv) < 2:
         console.print("[bold yellow]Usage:[/bold yellow] python main.py [command] [options]")
         console.print("[bold]Commands:[/bold]")
         console.print("  [cyan]list-projects[/cyan]                List all projects in Dependency-Track")
         console.print("  [cyan]upload --file <path> [--auto-bump][/cyan]  Upload a BOM file")
+        console.print("  [cyan]validate --file <path>[/cyan]              Validate a BOM file locally (syntax + structure)")
         sys.exit(1)
 
     command = sys.argv[1]
 
+    # -------------------------------
+    # ✅ Command: list-projects
+    # -------------------------------
     if command == "list-projects":
         projects = get_projects()
         if not projects:
@@ -32,12 +38,39 @@ def main():
         table.add_column("Project Name", style="cyan")
         table.add_column("Version", style="green")
         table.add_column("UUID", style="yellow")
-        
+
         for project in projects:
             table.add_row(project['name'], project['version'], project['uuid'])
 
         console.print(table)
 
+    # -------------------------------
+    # ✅ Command: validate
+    # -------------------------------
+    elif command == "validate":
+        if "--file" not in sys.argv:
+            console.print("[red]Error:[/red] You must provide a BOM file using [yellow]--file <path>[/yellow]")
+            sys.exit(1)
+
+        file_index = sys.argv.index("--file") + 1
+        bom_file = sys.argv[file_index]
+
+        if not file_exists(bom_file):
+            console.print(f"[red]Error:[/red] The file '{bom_file}' does not exist.")
+            sys.exit(1)
+
+        console.print(f"[cyan]🔍 Validating BOM file:[/cyan] {bom_file}")
+        valid = validate_bom_file(bom_file)
+
+        if valid:
+            console.print("[green]✅ BOM validation passed![/green]")
+        else:
+            console.print("[red]❌ BOM validation failed.[/red]")
+            sys.exit(1)
+
+    # -------------------------------
+    # ✅ Command: upload
+    # -------------------------------
     elif command == "upload":
         if "--file" not in sys.argv:
             console.print("[red]Error:[/red] You must provide a BOM file using [yellow]--file <path>[/yellow]")
@@ -63,8 +96,8 @@ def main():
                 table.add_row(project['name'], project['version'], project['uuid'])
             console.print(table)
 
-            proj_name = input("Enter project name: ").strip()
-            current_version = input("Enter current project version: ").strip()
+            proj_name = input("Enter project name: ")
+            current_version = input("Enter current project version: ")
 
             latest_version = get_latest_version(proj_name)
             if latest_version:
@@ -76,6 +109,7 @@ def main():
 
                 elif version.parse(current_version) == version.parse(latest_version):
                     if auto_bump:
+                        # 🔄 Auto-bump version
                         parts = current_version.split(".")
                         if len(parts) == 1:
                             new_version = f"{parts[0]}.1"
@@ -86,8 +120,10 @@ def main():
                             new_version = ".".join(parts)
                         console.print(f"[cyan]Auto-bumping version:[/cyan] {current_version} → {new_version}")
                     else:
+                        # 🧠 Ask user to manually provide a new version
                         console.print(f"[yellow]Version {current_version} already exists.[/yellow]")
                         new_version = input("Enter a new version number to upload: ").strip()
+
                         if version.parse(new_version) <= version.parse(current_version):
                             console.print(f"[red]Error:[/red] New version must be higher than the current version ({current_version}).")
                             sys.exit(1)
@@ -97,8 +133,8 @@ def main():
                 new_version = current_version
 
         else:
-            proj_name = input("Enter new project name: ").strip()
-            new_version = input("Enter new project version: ").strip()
+            proj_name = input("Enter new project name: ")
+            new_version = input("Enter new project version: ")
 
         project = get_or_create_project(proj_name, new_version)
         if not project:
