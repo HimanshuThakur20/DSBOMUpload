@@ -2,6 +2,7 @@
 
 import requests
 from config import get_api_headers, get_dtrack_url
+from packaging import version
 
 def get_projects():
     """
@@ -16,25 +17,23 @@ def get_projects():
         print(f"Error: Could not fetch projects. Status code: {response.status_code}")
         return []
 
-
-def find_project(projects, name, version):
+def find_project(projects, name, version_str):
     """
     Find a specific project by name and version.
     """
     for project in projects:
-        if project['name'] == name and project['version'] == version:
+        if project['name'] == name and project['version'] == version_str:
             return project
     return None
 
-
-def create_project(name, version):
+def create_project(name, version_str):
     """
     Create a new project in Dependency-Track.
     """
     url = f"{get_dtrack_url()}api/v1/project"
     payload = {
         "name": name,
-        "version": version,
+        "version": version_str,
         "active": True,
         "classifier": "APPLICATION"
     }
@@ -44,35 +43,33 @@ def create_project(name, version):
         return response.json()
     else:
         print(f"Error: Could not create project. Status code: {response.status_code}")
+        print(response.text)
         return None
 
-
-def get_version_restriction(projects, name, version):
+def get_version_restriction(projects, name, version_str):
     """
     Checks if a project with the same version already exists.
     Returns True if already exists (i.e. upload should be restricted).
     """
-    project_exists = find_project(projects, name, version)
+    project_exists = find_project(projects, name, version_str)
     if project_exists:
         return True
     return False
 
-
-def get_or_create_project(name, version):
+def get_or_create_project(name, version_str):
     """
     Get a project by name and version. If it doesn't exist, create it.
     Restrict upload if the same version already exists.
     """
     projects = get_projects()
 
-    # Restrict uploading to same version
-    if get_version_restriction(projects, name, version):
-        print(f"Error: A project named '{name}' with version '{version}' already exists.")
+    if get_version_restriction(projects, name, version_str):
+        print(f"Error: A project named '{name}' with version '{version_str}' already exists.")
         print("Please use a different version or delete the existing one.")
         return None
 
-    print(f"Creating new project '{name}' with version '{version}'...")
-    return create_project(name, version)
+    print(f"Creating new project '{name}' with version '{version_str}'...")
+    return create_project(name, version_str)
 
 def get_latest_version(project_name):
     """
@@ -85,5 +82,4 @@ def get_latest_version(project_name):
     try:
         return str(max(version.parse(v) for v in versions))
     except Exception:
-        # fallback for non-semver
         return sorted(versions)[-1]
