@@ -1,18 +1,35 @@
 # bom.py
+
 import requests
+from rich.console import Console
 from config import get_api_headers, get_dtrack_url
 
-def upload_bom(project_uuid, bom_file_path, auto_create=False):
-    """Uploads BOM file to Dependency-Track for the given project UUID."""
+console = Console()
+
+
+def upload_bom(project_uuid, bom_file):
+    """
+    Upload a CycloneDX XML BOM file to Dependency-Track.
+    This version sends the BOM using multipart/form-data as supported by /api/v1/bom.
+    """
     url = f"{get_dtrack_url()}api/v1/bom"
-    headers = get_api_headers(content_type=None)  # Content-Type will be determined by 'files' parameter
-    with open(bom_file_path, 'rb') as bom_file:
+    headers = get_api_headers()
+    # ❗ Remove content-type from headers — requests will set the correct multipart boundary
+    headers.pop("Content-Type", None)
+
+    with open(bom_file, "rb") as f:
         files = {
-            'project': (None, project_uuid),
-            'bom': (bom_file_path, bom_file, 'application/xml')
+            "bom": (bom_file, f, "application/xml")
         }
-        if auto_create:
-            files['autoCreate'] = (None, 'true')
-        response = requests.post(url, headers=headers, files=files)
+        data = {
+            "project": project_uuid
+        }
+
+        console.print(f"[cyan]Uploading BOM to project UUID:[/cyan] {project_uuid}")
+        response = requests.post(url, headers=headers, files=files, data=data)
+
+    if response.status_code != 200:
+        console.print(f"[red]❌ Upload failed: HTTP {response.status_code}[/red]")
+        console.print(f"[yellow]Response text:[/yellow] {response.text}")
         response.raise_for_status()
-        return response.json()
+
