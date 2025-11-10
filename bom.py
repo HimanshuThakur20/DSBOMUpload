@@ -1,5 +1,8 @@
 # bom.py
 
+import os
+import base64
+import json
 import requests
 from rich.console import Console
 from config import get_api_headers, get_dtrack_url
@@ -9,24 +12,34 @@ console = Console()
 
 def upload_bom(project_uuid, bom_file):
     """
-    Upload a CycloneDX XML BOM file to Dependency-Track.
-    This version sends the BOM using multipart/form-data as supported by /api/v1/bom.
+    Uploads a BOM (XML or JSON) file to Dependency-Track.
+    Automatically encodes the file in base64 as required by the API.
     """
     url = f"{get_dtrack_url()}api/v1/bom"
     headers = get_api_headers()
-    # ❗ Remove content-type from headers — requests will set the correct multipart boundary
-    headers.pop("Content-Type", None)
 
+    if not os.path.exists(bom_file):
+        console.print(f"[red]❌ Error: File not found:[/red] {bom_file}")
+        return
+
+    # Detect file type
+    file_ext = os.path.splitext(bom_file)[1].lower()
+    console.print(f"[cyan]Detected BOM format:[/cyan] {file_ext[1:].upper()}")
+
+    # Read and base64 encode the file content
     with open(bom_file, "rb") as f:
-        files = {
-            "bom": (bom_file, f, "application/xml")
-        }
-        data = {
-            "project": project_uuid
-        }
+        bom_data = f.read()
+        bom_b64 = base64.b64encode(bom_data).decode("utf-8")
 
-        console.print(f"[cyan]Uploading BOM to project UUID:[/cyan] {project_uuid}")
-        response = requests.post(url, headers=headers, files=files, data=data)
+    # Prepare JSON payload for Dependency-Track API
+    payload = {
+        "project": project_uuid,
+        "bom": bom_b64,
+        "autoCreate": False
+    }
+
+    # Send as JSON request
+    response = requests.put(url, headers={**headers, "Content-Type": "application/json"}, json=payload)
 
     if response.status_code != 200:
         console.print(f"[red]❌ Upload failed: HTTP {response.status_code}[/red]")

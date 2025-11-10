@@ -1,0 +1,231 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-08-29T00:00:00Z",
+    "tools": [
+      {
+        "vendor": "GitHub",
+        "name": "Copilot",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "auditor_backend",
+      "name": "laravel/laravel",
+      "description": "The Laravel Framework.",
+      "license": {
+        "id": "MIT"
+      }
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "bom-ref": "pkg:composer/laravel/framework@8.83.28",
+      "name": "laravel/framework",
+      "version": "^8.83.28",
+      "purl": "pkg:composer/laravel/framework@8.83.28"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/barryvdh/laravel-dompdf@1.0",
+      "name": "barryvdh/laravel-dompdf",
+      "version": "^1.0",
+      "purl": "pkg:composer/barryvdh/laravel-dompdf@1.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/fideloper/proxy@4.4",
+      "name": "fideloper/proxy",
+      "version": "^4.4",
+      "purl": "pkg:composer/fideloper/proxy@4.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/fruitcake/laravel-cors@2.0",
+      "name": "fruitcake/laravel-cors",
+      "version": "^2.0",
+      "purl": "pkg:composer/fruitcake/laravel-cors@2.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/guzzlehttp/guzzle@7.0.1",
+      "name": "guzzlehttp/guzzle",
+      "version": "^7.0.1",
+      "purl": "pkg:composer/guzzlehttp/guzzle@7.0.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/kyslik/column-sortable@6.4",
+      "name": "kyslik/column-sortable",
+      "version": "^6.4",
+      "purl": "pkg:composer/kyslik/column-sortable@6.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/laravel/sanctum@2.8",
+      "name": "laravel/sanctum",
+      "version": "^2.8",
+      "purl": "pkg:composer/laravel/sanctum@2.8"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/laravel/tinker@2.5",
+      "name": "laravel/tinker",
+      "version": "^2.5",
+      "purl": "pkg:composer/laravel/tinker@2.5"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/livewire/livewire@2.3",
+      "name": "livewire/livewire",
+      "version": "^2.3",
+      "purl": "pkg:composer/livewire/livewire@2.3"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/maatwebsite/excel@3.1",
+      "name": "maatwebsite/excel",
+      "version": "^3.1",
+      "purl": "pkg:composer/maatwebsite/excel@3.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/mews/captcha@3.2",
+      "name": "mews/captcha",
+      "version": "^3.2",
+      "purl": "pkg:composer/mews/captcha@3.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/paragonie/sodium_compat@1.19",
+      "name": "paragonie/sodium_compat",
+      "version": "^1.19",
+      "purl": "pkg:composer/paragonie/sodium_compat@1.19"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/facade/ignition@2.5",
+      "name": "facade/ignition",
+      "version": "^2.5",
+      "purl": "pkg:composer/facade/ignition@2.5",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/fakerphp/faker@1.9.1",
+      "name": "fakerphp/faker",
+      "version": "^1.9.1",
+      "purl": "pkg:composer/fakerphp/faker@1.9.1",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/laravel/ui@3.1",
+      "name": "laravel/ui",
+      "version": "^3.1",
+      "purl": "pkg:composer/laravel/ui@3.1",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/mockery/mockery@1.4.2",
+      "name": "mockery/mockery",
+      "version": "^1.4.2",
+      "purl": "pkg:composer/mockery/mockery@1.4.2",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/nunomaduro/collision@5.0",
+      "name": "nunomaduro/collision",
+      "version": "^5.0",
+      "purl": "pkg:composer/nunomaduro/collision@5.0",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/phpunit/phpunit@9.3.3",
+      "name": "phpunit/phpunit",
+      "version": "^9.3.3",
+      "purl": "pkg:composer/phpunit/phpunit@9.3.3",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/axios@0.19",
+      "name": "axios",
+      "version": "^0.19",
+      "purl": "pkg:npm/axios@0.19",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/cross-env@7.0",
+      "name": "cross-env",
+      "version": "^7.0",
+      "purl": "pkg:npm/cross-env@7.0",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/laravel-mix@5.0.1",
+      "name": "laravel-mix",
+      "version": "^5.0.1",
+      "purl": "pkg:npm/laravel-mix@5.0.1",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lodash@4.17.19",
+      "name": "lodash",
+      "version": "^4.17.19",
+      "purl": "pkg:npm/lodash@4.17.19",
+      "scope": "development"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/resolve-url-loader@3.1.0",
+      "name": "resolve-url-loader",
+      "version": "^3.1.0",
+      "purl": "pkg:npm/resolve-url-loader@3.1.0",
+      "scope": "development"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "auditor_backend",
+      "dependsOn": [
+        "pkg:composer/php@8.0",
+        "pkg:composer/laravel/framework@8.83.28",
+        "pkg:composer/barryvdh/laravel-dompdf@1.0",
+        "pkg:composer/fideloper/proxy@4.4",
+        "pkg:composer/fruitcake/laravel-cors@2.0",
+        "pkg:composer/guzzlehttp/guzzle@7.0.1",
+        "pkg:composer/kyslik/column-sortable@6.4",
+        "pkg:composer/laravel/sanctum@2.8",
+        "pkg:composer/laravel/tinker@2.5",
+        "pkg:composer/livewire/livewire@2.3",
+        "pkg:composer/maatwebsite/excel@3.1",
+        "pkg:composer/mews/captcha@3.2",
+        "pkg:composer/paragonie/sodium_compat@1.19",
+        "pkg:composer/facade/ignition@2.5",
+        "pkg:composer/fakerphp/faker@1.9.1",
+        "pkg:composer/laravel/ui@3.1",
+        "pkg:composer/mockery/mockery@1.4.2",
+        "pkg:composer/nunomaduro/collision@5.0",
+        "pkg:composer/phpunit/phpunit@9.3.3",
+        "pkg:npm/axios@0.19",
+        "pkg:npm/cross-env@7.0",
+        "pkg:npm/laravel-mix@5.0.1",
+        "pkg:npm/lodash@4.17.19",
+        "pkg:npm/resolve-url-loader@3.1.0"
+      ]
+    }
+  ]
+}
+
