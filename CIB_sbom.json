@@ -1,0 +1,139 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-08-18T12:00:00Z",
+    "tools": [
+      {
+        "vendor": "GitHub",
+        "name": "Copilot",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "fincare-cib",
+      "name": "fincare-cib",
+      "description": "Fincare CIB Application"
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "bom-ref": "pkg:composer/codeigniter/framework@3.x",
+      "name": "CodeIgniter",
+      "description": "PHP Framework for Web Application Development",
+      "purl": "pkg:composer/codeigniter/framework@3.x",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/dompdf/dompdf@latest",
+      "name": "DOMPDF",
+      "description": "CSS 2.1 compliant HTML to PDF converter",
+      "purl": "pkg:composer/dompdf/dompdf@latest",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://github.com/dompdf/dompdf"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/phpoffice/phpexcel@latest",
+      "name": "PHPExcel",
+      "description": "Library for reading and writing spreadsheet files",
+      "purl": "pkg:composer/phpoffice/phpexcel@latest",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "http://www.codeplex.com/PHPExcel"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:composer/phpmailer/phpmailer@latest",
+      "name": "PHPMailer",
+      "description": "PHP email creation and transport class",
+      "purl": "pkg:composer/phpmailer/phpmailer@latest",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "php-font-lib",
+      "name": "PHP Font Lib",
+      "description": "Library for working with font files",
+      "purl": "pkg:composer/phenx/php-font-lib@latest"
+    },
+    {
+      "type": "library",
+      "bom-ref": "php-svg-lib",
+      "name": "PHP SVG Lib",
+      "description": "Library for working with SVG files",
+      "purl": "pkg:composer/phenx/php-svg-lib@latest"
+    },
+    {
+      "type": "application",
+      "bom-ref": "pkg:generic/php@7.x",
+      "name": "PHP",
+      "description": "Server-side scripting language",
+      "purl": "pkg:generic/php@7.x",
+      "properties": [
+        {
+          "name": "required-extensions",
+          "value": "gd, dom, mbstring"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "fincare-cib",
+      "dependsOn": [
+        "pkg:composer/codeigniter/framework@3.x",
+        "pkg:composer/dompdf/dompdf@latest",
+        "pkg:composer/phpoffice/phpexcel@latest",
+        "pkg:composer/phpmailer/phpmailer@latest",
+        "pkg:generic/php@7.x"
+      ]
+    },
+    {
+      "ref": "pkg:composer/dompdf/dompdf@latest",
+      "dependsOn": [
+        "php-font-lib",
+        "php-svg-lib"
+      ]
+    }
+  ]
+}
+
