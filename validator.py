@@ -15,63 +15,58 @@ SCHEMA_DIR = os.path.join(os.path.dirname(__file__), "schemas")
 
 def ensure_schema_exists(schema_format: str, spec_version: str):
     """
-    Ensure the CycloneDX schema file for the given version/format exists locally.
+    Ensure CycloneDX schema and its dependencies exist locally.
     """
     os.makedirs(os.path.join(SCHEMA_DIR, schema_format), exist_ok=True)
+    dependencies = []
 
     if schema_format == "json":
         filename = f"bom-{spec_version}.schema.json"
     else:
         filename = f"bom-{spec_version}.xsd"
+        dependencies = ["spdx.xsd", "vulnerability-1.0.xsd"]
 
-    local_path = os.path.join(SCHEMA_DIR, schema_format, filename)
+    all_schemas = [filename] + dependencies
 
-    if not os.path.exists(local_path):
-        url = f"{CYCLONEDX_SCHEMA_BASE}/{filename}"
-        console.print(f"[yellow]🔽 Downloading CycloneDX schema:[/yellow] {url}")
-        try:
-            response = requests.get(url, timeout=30)
-            if response.status_code == 200:
-                with open(local_path, "wb") as f:
-                    f.write(response.content)
-                console.print(f"[green]✅ Schema cached locally:[/green] {local_path}")
-            else:
-                console.print(f"[red]⚠️ Failed to fetch schema (HTTP {response.status_code})[/red]")
-                return None
-        except Exception as e:
-            console.print(f"[red]⚠️ Schema download failed:[/red] {e}")
-            return None
+    for schema_name in all_schemas:
+        local_path = os.path.join(SCHEMA_DIR, schema_format, schema_name)
+        if not os.path.exists(local_path):
+            url = f"{CYCLONEDX_SCHEMA_BASE}/{schema_name}"
+            console.print(f"[yellow]🔽 Downloading CycloneDX schema:[/yellow] {url}")
+            try:
+                response = requests.get(url, timeout=30)
+                if response.status_code == 200:
+                    with open(local_path, "wb") as f:
+                        f.write(response.content)
+                    console.print(f"[green]✅ Cached schema:[/green] {local_path}")
+                else:
+                    console.print(f"[red]⚠️ Failed to fetch {schema_name} (HTTP {response.status_code})[/red]")
+            except Exception as e:
+                console.print(f"[red]⚠️ Schema download failed for {schema_name}:[/red] {e}")
 
-    return local_path
+    return os.path.join(SCHEMA_DIR, schema_format, filename)
 
 
 def detect_bom_format_and_version(file_path: str):
     """
-    Detect if BOM is JSON or XML and extract specVersion.
+    Detect BOM type and specVersion.
     """
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             first_char = f.read(1)
             f.seek(0)
             if first_char == "{":
-                # JSON BOM
                 data = json.load(f)
-                return "json", data.get("specVersion", None), data
+                return "json", data.get("specVersion"), data
             else:
-                # XML BOM
                 tree = ET.parse(f)
                 root = tree.getroot()
-
-                # Extract specVersion from namespace
                 xmlns = root.tag[root.tag.find("{")+1:root.tag.find("}")]
                 spec_version = None
                 if xmlns.startswith("http://cyclonedx.org/schema/bom/"):
-                    spec_version = xmlns.split("/")[-1]  # e.g., "1.4"
-
-                # Fallback to version attribute
+                    spec_version = xmlns.split("/")[-1]
                 if not spec_version:
                     spec_version = root.attrib.get("version")
-
                 return "xml", spec_version, root
     except Exception as e:
         console.print(f"[red]❌ Format detection failed:[/red] {e}")
@@ -79,9 +74,6 @@ def detect_bom_format_and_version(file_path: str):
 
 
 def level1_check(file_path: str):
-    """
-    Level 1: Basic file checks.
-    """
     if not os.path.exists(file_path):
         return False, "File not found."
     if os.path.getsize(file_path) == 0:
@@ -90,11 +82,8 @@ def level1_check(file_path: str):
 
 
 def level2_check(format_type, spec_version, bom_data):
-    """
-    Level 2: Structural field validation.
-    """
     if not format_type or not spec_version:
-        return False, "specVersion or format missing."
+        return False, "Missing format or specVersion."
 
     if format_type == "json":
         required_fields = ["bomFormat", "specVersion", "components"]
@@ -106,20 +95,29 @@ def level2_check(format_type, spec_version, bom_data):
         if not isinstance(bom_data.get("components", []), list):
             return False, "components must be a list."
     else:
-        # XML minimal structural check
         if not bom_data.tag.lower().endswith("bom"):
             return False, "Root element must be <bom>."
-        ns = {"ns": "http://cyclonedx.org/schema/bom/" + spec_version}
+        ns = {"ns": f"http://cyclonedx.org/schema/bom/{spec_version}"}
         components = bom_data.findall(".//ns:components", ns)
         if not components:
             return False, "Missing <components> element."
     return True, "Structure looks valid."
 
 
+def parse_xml_error(error_log):
+    """Extract human-readable validation error details."""
+    messages = []
+    for entry in error_log:
+        msg = f"Line {entry.line}: {entry.message}"
+        if entry.domain_name:
+            msg += f" [Domain: {entry.domain_name}]"
+        if entry.level_name:
+            msg += f" [Level: {entry.level_name}]"
+        messages.append(msg)
+    return messages or ["Unknown XML validation error."]
+
+
 def level3_check(file_path: str, format_type: str, spec_version: str):
-    """
-    Level 3: Schema validation (strict compliance).
-    """
     schema_path = ensure_schema_exists(format_type, spec_version)
     if not schema_path:
         return None, "Schema not found; skipping strict validation."
@@ -132,46 +130,41 @@ def level3_check(file_path: str, format_type: str, spec_version: str):
                 data = json.load(f)
             json_validate(instance=data, schema=schema)
         else:
-            xmlschema_doc = etree.parse(schema_path)
+            parser = etree.XMLParser(load_dtd=True)
+            xmlschema_doc = etree.parse(schema_path, parser)
             xmlschema = etree.XMLSchema(xmlschema_doc)
             xml_doc = etree.parse(file_path)
             xmlschema.assertValid(xml_doc)
         return True, f"BOM is valid according to CycloneDX {spec_version} schema."
     except ValidationError as e:
-        return False, f"JSON schema validation failed: {e.message}"
+        path = ".".join([str(p) for p in e.path]) if e.path else "(root)"
+        return False, f"JSON validation failed at '{path}': {e.message}"
     except etree.DocumentInvalid as e:
-        return False, f"XML schema validation failed: {e}"
+        errors = parse_xml_error(e.error_log)
+        return False, f"XML schema validation failed:\n" + "\n".join(errors[:3])  # show top 3
     except Exception as e:
-        return False, f"Unexpected error during validation: {e}"
+        return False, f"Unexpected validation error: {e}"
 
 
 def validate_bom_file(file_path: str):
-    """
-    Runs Level 1, 2, and 3 validation with rich output.
-    """
     console.print(f"\n[bold cyan]🔍 Validating BOM file:[/bold cyan] {file_path}\n")
 
     results = []
-
-    # Level 1
     lvl1_pass, lvl1_msg = level1_check(file_path)
     results.append(("Level 1: File Check", lvl1_pass, lvl1_msg))
     if not lvl1_pass:
         display_results(results)
         return False
 
-    # Detect format + version
     format_type, spec_version, bom_data = detect_bom_format_and_version(file_path)
     if not format_type:
         results.append(("Format Detection", False, "Could not determine format or specVersion."))
         display_results(results)
         return False
 
-    # Level 2
     lvl2_pass, lvl2_msg = level2_check(format_type, spec_version, bom_data)
     results.append(("Level 2: Structure Check", lvl2_pass, lvl2_msg))
 
-    # Level 3
     lvl3_pass, lvl3_msg = level3_check(file_path, format_type, spec_version)
     if lvl3_pass is None:
         results.append(("Level 3: Schema Validation", True, "Skipped (schema not found)"))
@@ -183,9 +176,6 @@ def validate_bom_file(file_path: str):
 
 
 def display_results(results):
-    """
-    Display validation results in a formatted table.
-    """
     table = Table(title="BOM Validation Summary", show_header=True, header_style="bold magenta")
     table.add_column("Check")
     table.add_column("Status", style="bold")
