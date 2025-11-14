@@ -1,0 +1,83 @@
+# Mapping from semantic check names → rule configuration
+policies:
+
+  # ======================
+  # CORE FIELDS
+  # ======================
+  require_timestamp:
+    severity: error
+    strict: true
+    id: REQUIRED_METADATA
+
+  require_author:
+    severity: error
+    strict: true
+    id: REQUIRED_METADATA_COMPONENT
+
+  # ======================
+  # VERSION CHECKS
+  # ======================
+  require_component_version:
+    severity: error
+    strict: true
+    id: COMPONENT_VERSION_MISSING
+
+  validate_version_semver:
+    severity: warning
+    strict: false
+    id: COMPONENT_VERSION_INVALID
+
+  # ======================
+  # LICENSE CHECKS
+  # ======================
+  require_license:
+    severity: warning
+    strict: false
+    id: LICENSE_MISSING
+
+  validate_spdx_license_id:
+    severity: warning
+    strict: false
+    id: LICENSE_UNKNOWN
+
+  # ======================
+  # PURL
+  # ======================
+  require_purl:
+    severity: error
+    strict: true
+    id: PURL_MISSING
+
+  # ======================
+  # SUPPLIER
+  # ======================
+  require_supplier:
+    severity: warning
+    strict: false
+    id: SUPPLIER_MISSING
+
+  # ======================
+  # DEPENDENCIES
+  # ======================
+  require_dependencies:
+    severity: error
+    strict: true
+    id: DEPENDS_ON_MISSING
+
+  # ======================
+  # DUPLICATES
+  # ======================
+  # (will be implemented later in semantic_validator)
+  component_duplicate:
+    severity: error
+    strict: true
+    id: COMPONENT_DUPLICATE
+
+  # ======================
+  # EMPTY FIELDS
+  # ======================
+  # (optional future check)
+  empty_field:
+    severity: warning
+    strict: false
+    id: EMPTY_FIELD

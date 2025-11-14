@@ -1,7 +1,7 @@
-# For making HTTP requests to Dependency-Track API
-requests==2.31.0
+lxml
+jsonschema
+requests
+rich
+pyyaml
+packaging
 
-# For optional pretty console output
-rich==13.7.0
-
-packaging==24.2
