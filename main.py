@@ -11,6 +11,8 @@ from rich.table import Table, box
 from packaging import version
 from validator.depsdev_validator import perform_depsdev_validation
 from validator.policy_enforcer import PolicyEnforcer
+from rich.table import Table
+from rich.console import Console
 
 console = Console()
 
@@ -111,23 +113,75 @@ def main():
 
         # PHASE 3 - semantic + policy
         _print_phase_header("PHASE 3 — Semantic checks & Policy enforcement")
-        enforcer = PolicyEnforcer()
-        # detection_result passed should include parsed structure
-        policy_ok, policy_results = enforcer.enforce(detection_result=res, parsed_bom=res.parsed)
 
-        policy_table = Table(title="Policy Results", show_header=True, header_style="bold magenta")
-        policy_table.add_column("Rule")
-        policy_table.add_column("Severity")
-        policy_table.add_column("Status")
-        policy_table.add_column("Message", style="dim")
+        enforcer = PolicyEnforcer()
+        policy_ok, policy_results = enforcer.enforce(
+            detection_result=res,
+            parsed_bom=res.parsed
+        )
+
+        # -----------------------------------------
+        # COLOR helper
+        # -----------------------------------------
+        def colorize(status: str):
+            if status == "PASS":
+                return "[green]PASS[/green]"
+            if status == "WARN":
+                return "[yellow]WARN[/yellow]"
+            if status == "FAIL":
+                return "[red]FAIL[/red]"
+            return status
+
+
+        # -----------------------------------------
+        # CI Minimal table (ALWAYS FIRST)
+        # -----------------------------------------
+        ci_table = Table(
+            title="Policy Results (CI Minimal)",
+            show_header=True,
+            header_style="bold white"
+        )
+        ci_table.add_column("Rule")
+        ci_table.add_column("Severity")
+        ci_table.add_column("Status")
+        ci_table.add_column("Message", style="dim")
+
         for pr in policy_results:
-            policy_table.add_row(pr.rule, pr.severity, pr.status, pr.message)
-        console.print(policy_table)
+            ci_table.add_row(
+                pr.rule,
+                pr.severity,
+                colorize(pr.status),
+                pr.message
+            )
+
+        console.print(ci_table)
+
         if not policy_ok:
-            console.print("[red]❌ Policy checks failed.[/red]")
-            # continue to Phase 4 (we still run deps.dev but mark overall fail later)
+            console.print("[red]Policy checks failed.[/red]")
         else:
-            console.print("[green]✅ Policy checks passed.[/green]")
+            console.print("[green]Policy checks passed.[/green]")
+
+
+        # -----------------------------------------
+        # Detailed block (ALWAYS SECOND)
+        # -----------------------------------------
+        console.print("\n[bold underline]Detailed Policy Breakdown[/bold underline]\n")
+
+        for pr in policy_results:
+            console.print(f"[white]Rule:[/white] {pr.rule}")
+            console.print(f"[white]ID:[/white] {pr.id}")
+            console.print(f"[white]Category:[/white] {pr.category}")
+            console.print(f"[white]Severity:[/white] {pr.severity}")
+            console.print(f"[white]Status:[/white] {colorize(pr.status)}")
+            console.print(f"[white]Description:[/white] {pr.description}")
+            console.print(f"[white]Reason:[/white] {pr.reason}")
+            console.print(f"[white]Message:[/white] {pr.message}")
+
+            if pr.details:
+                console.print(f"[white]Details:[/white] {pr.details}")
+
+            console.print("-" * 80)
+
 
         # PHASE 4 - deps.dev package verification (Option A: ALWAYS run)
         _print_phase_header("PHASE 4 — deps.dev package reality check (always ON)")
