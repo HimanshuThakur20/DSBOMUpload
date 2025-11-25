@@ -1,4 +1,5 @@
 # main.py
+
 import sys
 import os
 from project import get_or_create_project, get_projects, get_latest_version
@@ -11,8 +12,8 @@ from rich.table import Table, box
 from packaging import version
 from validator.depsdev_validator import perform_depsdev_validation
 from validator.policy_enforcer import PolicyEnforcer
-from rich.table import Table
-from rich.console import Console
+from validator.semantic_validator import xml_child_text
+
 
 console = Console()
 
@@ -45,13 +46,12 @@ def main():
 
     command = sys.argv[1]
 
-    # -------------------------
+    # ============================================================
     # list-projects
-    # -------------------------
+    # ============================================================
     if command == "list-projects":
-        projects = get_projects()
-        projects = projects or []
-        projects = sorted(projects, key=lambda x: x['name'].lower()) if projects else []
+        projects = get_projects() or []
+        projects = sorted(projects, key=lambda x: x["name"].lower()) if projects else []
         if not projects:
             console.print("[red]No projects found.[/red]")
             sys.exit(0)
@@ -61,13 +61,13 @@ def main():
         table.add_column("Version", style="green")
         table.add_column("UUID", style="yellow")
         for p in projects:
-            table.add_row(p['name'], p['version'], p['uuid'])
+            table.add_row(p["name"], p["version"], p["uuid"])
         console.print(table)
         sys.exit(0)
 
-    # -------------------------
+    # ============================================================
     # validate
-    # -------------------------
+    # ============================================================
     elif command == "validate":
         if "--file" not in sys.argv:
             console.print("[red]Error:[/red] Missing required argument --file <path>")
@@ -80,7 +80,9 @@ def main():
 
         console.print(f"[bold]Validating BOM:[/bold] {bom_file}")
 
-        # PHASE 1
+        # -----------------------------
+        # PHASE 1 — parsing
+        # -----------------------------
         _print_phase_header("PHASE 1 — File / Parsing / SBOM Detection")
         res = validate_bom_file(bom_file)
 
@@ -100,18 +102,22 @@ def main():
         console.print(f"[green]✔ SBOM Type:[/green] {res.bom_type}")
         console.print(f"[green]✔ specVersion:[/green] {res.spec_version}")
 
-        # PHASE 2 - Schema validation
+        # -----------------------------
+        # PHASE 2 — schema validation
+        # -----------------------------
         _print_phase_header("PHASE 2 — Schema Validation (dynamic)")
-        # results already populated by sbom_validator (phase2 fields)
+
         if res.phase2_schema_ok:
-            console.print("[green]✅ Schema validation passed.[/green]")
+            console.print("[green]✔ Schema validation passed.[/green]")
         else:
             console.print("[red]❌ Schema validation failed.[/red]")
-            for err in res.phase2_schema_errors:
-                console.print(f"  • {err}")
+            for e in res.phase2_schema_errors:
+                console.print(f"  • {e}")
             sys.exit(1)
 
-        # PHASE 3 - semantic + policy
+        # ============================================================
+        # PHASE 3 — Semantic + Policy
+        # ============================================================
         _print_phase_header("PHASE 3 — Semantic checks & Policy enforcement")
 
         enforcer = PolicyEnforcer()
@@ -120,9 +126,8 @@ def main():
             parsed_bom=res.parsed
         )
 
-        # -----------------------------------------
-        # COLOR helper
-        # -----------------------------------------
+        policy_cfg = enforcer.policy.get("policies", {})
+
         def colorize(status: str):
             if status == "PASS":
                 return "[green]PASS[/green]"
@@ -130,17 +135,14 @@ def main():
                 return "[yellow]WARN[/yellow]"
             if status == "FAIL":
                 return "[red]FAIL[/red]"
+            if status == "SKIP":
+                return "[white]SKIP[/white]"
             return status
 
-
         # -----------------------------------------
-        # CI Minimal table (ALWAYS FIRST)
+        # CI MINIMAL TABLE
         # -----------------------------------------
-        ci_table = Table(
-            title="Policy Results (CI Minimal)",
-            show_header=True,
-            header_style="bold white"
-        )
+        ci_table = Table(title="Policy Results (CI Minimal)", show_header=True, header_style="bold white")
         ci_table.add_column("Rule")
         ci_table.add_column("Severity")
         ci_table.add_column("Status")
@@ -161,30 +163,116 @@ def main():
         else:
             console.print("[green]Policy checks passed.[/green]")
 
-
         # -----------------------------------------
-        # Detailed block (ALWAYS SECOND)
+        # DETAILED OUTPUT (IMPROVED DETAILS BLOCK)
         # -----------------------------------------
         console.print("\n[bold underline]Detailed Policy Breakdown[/bold underline]\n")
 
+        # dedupe rules
+        unique_results = []
+        seen = set()
         for pr in policy_results:
-            console.print(f"[white]Rule:[/white] {pr.rule}")
-            console.print(f"[white]ID:[/white] {pr.id}")
-            console.print(f"[white]Category:[/white] {pr.category}")
+            if pr.rule not in seen:
+                seen.add(pr.rule)
+                unique_results.append(pr)
+
+
+        def summarize_details(details):
+            """
+            Create developer-friendly details:
+            - extract component name/version/purl for XML/JSON
+            - fallback to bom-ref
+            - truncate if huge
+            """
+
+            if not details:
+                return None
+
+            simplified = []
+
+            # limit large detail lists
+            limit = 20
+            extra = 0
+
+            for item in details:
+                if len(simplified) >= limit:
+                    extra = len(details) - limit
+                    break
+
+                # XML element?
+                if hasattr(item, "tag"):
+                    name = xml_child_text(item, "name") or "<no-name>"
+                    version = xml_child_text(item, "version")
+                    purl = xml_child_text(item, "purl")
+                    cref = item.get("bom-ref") if hasattr(item, "get") else None
+
+                # JSON dict?
+                elif isinstance(item, dict):
+                    name = item.get("name") or "<no-name>"
+                    version = item.get("version")
+                    purl = item.get("purl")
+                    cref = item.get("bom-ref")
+                else:
+                    # fallback for unexpected types
+                    simplified.append(str(item))
+                    continue
+
+                line = f"{name}"
+                if version:
+                    line += f" version={version}"
+                if purl:
+                    line += f" purl={purl}"
+                if cref:
+                    line += f" bom-ref={cref}"
+
+                simplified.append(line)
+
+            if extra > 0:
+                simplified.append(f"... ({extra} more items not shown)")
+
+            return simplified
+
+
+        for pr in unique_results:
+
+            # map display_name → yaml key
+            cfg = next(
+                (v for k, v in policy_cfg.items() if v.get("display_name") == pr.rule),
+                {}
+            )
+
+            category = cfg.get("category", "unknown")
+            description = cfg.get("description", "No description provided.")
+            reason = cfg.get("reason", "No reason provided.")
+            display_name = cfg.get("display_name", pr.rule)
+            strict = cfg.get("strict", False)
+
+            console.print(f"[white]Rule:[/white] {display_name}")
+            console.print(f"[white]Internal ID:[/white] {pr.id}")
+            console.print(f"[white]Category:[/white] {category}")
             console.print(f"[white]Severity:[/white] {pr.severity}")
+            console.print(f"[white]Strict:[/white] {strict}")
             console.print(f"[white]Status:[/white] {colorize(pr.status)}")
-            console.print(f"[white]Description:[/white] {pr.description}")
-            console.print(f"[white]Reason:[/white] {pr.reason}")
+            console.print(f"[white]Description:[/white] {description}")
+            console.print(f"[white]Reason:[/white] {reason}")
             console.print(f"[white]Message:[/white] {pr.message}")
 
-            if pr.details:
-                console.print(f"[white]Details:[/white] {pr.details}")
+            # improved details
+            formatted_details = summarize_details(pr.details)
+            if formatted_details:
+                console.print("[white]Details:[/white]")
+                for line in formatted_details:
+                    console.print(f"  - {line}")
 
             console.print("-" * 80)
 
 
-        # PHASE 4 - deps.dev package verification (Option A: ALWAYS run)
+
+        # ============================================================
+        # PHASE 4 — deps.dev reality check
+        # ============================================================
         _print_phase_header("PHASE 4 — deps.dev package reality check (always ON)")
+
         try:
             deps_results = perform_depsdev_validation(res.format, res.parsed)
         except Exception as e:
@@ -202,11 +290,14 @@ def main():
             if not ok:
                 overall_deps_ok = False
             deps_table.add_row(purl, status, msg)
+
         console.print(deps_table)
 
-        # Final decision
+        # ============================================================
+        # FINAL RESULT
+        # ============================================================
         if res.phase2_schema_ok and policy_ok and overall_deps_ok:
-            console.print("\n[bold green]✅ All validation phases passed. SBOM is valid.[/bold green]")
+            console.print("\n[bold green]✔ All validation phases passed. SBOM is valid.[/bold green]")
             sys.exit(0)
         else:
             console.print("\n[bold red]❌ Validation completed with failures.[/bold red]")
@@ -218,9 +309,9 @@ def main():
                 console.print(" - deps.dev package reality check failed.")
             sys.exit(2)
 
-    # -------------------------
+    # ============================================================
     # upload
-    # -------------------------
+    # ============================================================
     elif command == "upload":
         if "--file" not in sys.argv:
             console.print("[red]Error:[/red] Missing required argument --file <path>")
@@ -234,14 +325,16 @@ def main():
         use_existing = ask_yes_no("Do you want to upload to an existing project?")
         if use_existing:
             projects = get_projects() or []
-            projects = sorted(projects, key=lambda x: x['name'].lower())
+            projects = sorted(projects, key=lambda x: x["name"].lower())
+
             table = Table(show_header=True, header_style="bold magenta", box=box.DOUBLE)
             table.add_column("Project Name", style="cyan")
             table.add_column("Version", style="green")
             table.add_column("UUID", style="yellow")
             for p in projects:
-                table.add_row(p['name'], p['version'], p['uuid'])
+                table.add_row(p["name"], p["version"], p["uuid"])
             console.print(table)
+
             proj_name = input("Enter project name: ").strip()
             latest_version = get_latest_version(proj_name)
             if latest_version:
@@ -250,6 +343,7 @@ def main():
             else:
                 new_version = "1.0"
                 console.print("[yellow]No existing version found; using 1.0[/yellow]")
+
         else:
             proj_name = input("Enter new project name: ").strip()
             new_version = input("Enter new project version: ").strip()
@@ -258,8 +352,9 @@ def main():
         if not project:
             console.print("[red]❌ Project create / retrieve failed.[/red]")
             sys.exit(1)
+
         upload_bom(project["uuid"], bom_file)
-        console.print("[green]✅ BOM uploaded successfully.[/green]")
+        console.print("[green]✔ BOM uploaded successfully.[/green]")
         console.print(f"[cyan]Project:[/cyan] {proj_name} [cyan]Version:[/cyan] {new_version}")
         sys.exit(0)
 

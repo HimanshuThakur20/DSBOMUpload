@@ -406,3 +406,155 @@ def run_semantic_checks(parsed, fmt, bom_type, spec_version=None) -> Dict[str, D
                 "details": None,
             }
     return results
+
+# ======================================================================
+# NTIA / BOM STRUCTURE CHECKS (NEW)
+# ======================================================================
+
+@sbom_check("require_bom_format")
+def require_bom_format(parsed, fmt, bom_type):
+    if fmt == "json":
+        ok = bool(parsed.get("bomFormat"))
+        return {
+            "passed": ok,
+            "message": "bomFormat present" if ok else "Missing bomFormat",
+            "details": parsed.get("bomFormat"),
+        }
+    # XML always has bomFormat implied; consider present
+    return {"passed": True, "message": "bomFormat implicit in XML", "details": None}
+
+
+@sbom_check("require_spec_version")
+def require_spec_version(parsed, fmt, bom_type):
+    if fmt == "json":
+        ver = parsed.get("specVersion")
+        return {
+            "passed": bool(ver),
+            "message": "specVersion present" if ver else "Missing specVersion",
+            "details": ver,
+        }
+    # XML: attribute on <bom>
+    root = get_root(parsed)
+    ver = root.attrib.get("version") if root is not None else None
+    return {
+        "passed": bool(ver),
+        "message": "specVersion present" if ver else "Missing specVersion",
+        "details": ver,
+    }
+
+
+@sbom_check("require_metadata_section")
+def require_metadata_section(parsed, fmt, bom_type):
+    if fmt == "json":
+        meta = parsed.get("metadata")
+        ok = isinstance(meta, dict)
+        return {
+            "passed": ok,
+            "message": "Metadata section present" if ok else "Missing metadata section",
+            "details": meta,
+        }
+
+    root = get_root(parsed)
+    meta = get_xml_list(root, "metadata")
+    ok = bool(meta)
+    return {
+        "passed": ok,
+        "message": "Metadata section present" if ok else "Missing metadata section",
+        "details": meta,
+    }
+
+
+@sbom_check("require_root_component")
+def require_root_component(parsed, fmt, bom_type):
+    if fmt == "json":
+        root_cmp = parsed.get("metadata", {}).get("component")
+        ok = isinstance(root_cmp, dict)
+        return {
+            "passed": ok,
+            "message": "Root component present" if ok else "Missing root component",
+            "details": root_cmp,
+        }
+
+    root_elem = get_xml_list(get_root(parsed), "component")
+    ok = bool(root_elem)
+    return {
+        "passed": ok,
+        "message": "Root component present" if ok else "Missing root component",
+        "details": root_elem,
+    }
+
+
+@sbom_check("require_root_component_name")
+def require_root_component_name(parsed, fmt, bom_type):
+    if fmt == "json":
+        cmp = parsed.get("metadata", {}).get("component", {})
+        name = cmp.get("name")
+        return {
+            "passed": bool(name),
+            "message": "Root component name present" if name else "Missing root component name",
+            "details": name,
+        }
+
+    # XML
+    meta = get_xml_list(get_root(parsed), "metadata")
+    if not meta:
+        return {"passed": False, "message": "Missing metadata", "details": None}
+
+    name = xml_child_text(meta[0], "name")
+    return {
+        "passed": bool(name),
+        "message": "Root component name present" if name else "Missing root component name",
+        "details": name,
+    }
+
+
+@sbom_check("require_root_component_ref")
+def require_root_component_ref(parsed, fmt, bom_type):
+    if fmt == "json":
+        cmp = parsed.get("metadata", {}).get("component", {})
+        bref = cmp.get("bom-ref")
+        return {
+            "passed": bool(bref),
+            "message": "Root component bom-ref present" if bref else "Missing root component bom-ref",
+            "details": bref,
+        }
+
+    meta = get_xml_list(get_root(parsed), "metadata")
+    if not meta:
+        return {"passed": False, "message": "Missing metadata", "details": None}
+
+    # attribute on <component>
+    comp_elem = meta[0].find(".//*")
+    bref = comp_elem.attrib.get("bom-ref") if comp_elem is not None else None
+    return {
+        "passed": bool(bref),
+        "message": "Root component bom-ref present" if bref else "Missing root component bom-ref",
+        "details": bref,
+    }
+
+
+# ======================================================================
+# IDENTIFIER RULE — purl OR cpe must be present
+# ======================================================================
+
+@sbom_check("require_cpe_or_purl")
+def require_cpe_or_purl(parsed, fmt, bom_type):
+    items = get_components(parsed, fmt, bom_type)
+    missing = []
+
+    for item in items:
+        if fmt == "json":
+            purl = item.get("purl")
+            cpe = item.get("cpe")
+        else:
+            purl = xml_child_text(item, "purl")
+            cpe = xml_child_text(item, "cpe")
+
+        if not purl and not cpe:
+            missing.append(item)
+
+    return {
+        "passed": len(missing) == 0,
+        "message": f"{len(missing)}/{len(items)} missing identifier (purl or cpe)",
+        "details": missing,
+    }
