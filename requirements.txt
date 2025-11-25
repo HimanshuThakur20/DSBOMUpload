@@ -1,7 +1,6 @@
+rich
 lxml
 jsonschema
-requests
-rich
 pyyaml
+requests
 packaging
-
