@@ -1,4 +1,4 @@
-SBOM Validator & Dependency-Track CLI
+# SBOM Validator & Dependency-Track CLI
 
 A complete command-line toolkit for validating SBOM files, enforcing policy rules, performing ecosystem checks, and integrating with Dependency-Track.
 
