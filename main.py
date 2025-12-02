@@ -10,7 +10,7 @@ from utils.file_utils import file_exists
 from rich.console import Console
 from rich.table import Table, box
 from packaging import version
-from validator.depsdev_validator import perform_depsdev_validation
+# from validator.depsdev_validator import perform_depsdev_validation
 from validator.policy_enforcer import PolicyEnforcer
 from validator.semantic_validator import xml_child_text
 
@@ -268,30 +268,30 @@ def main():
 
 
 
-        # ============================================================
-        # PHASE 4 — deps.dev reality check
-        # ============================================================
-        _print_phase_header("PHASE 4 — deps.dev package reality check (always ON)")
+        # # ============================================================
+        # # PHASE 4 — deps.dev reality check
+        # # ============================================================
+        # _print_phase_header("PHASE 4 — deps.dev package reality check (always ON)")
 
-        try:
-            deps_results = perform_depsdev_validation(res.format, res.parsed)
-        except Exception as e:
-            console.print(f"[yellow]⚠ deps.dev validation failed to run: {e}[/yellow]")
-            deps_results = []
+        # try:
+        #     deps_results = perform_depsdev_validation(res.format, res.parsed)
+        # except Exception as e:
+        #     console.print(f"[yellow]⚠ deps.dev validation failed to run: {e}[/yellow]")
+        #     deps_results = []
 
-        deps_table = Table(title="deps.dev Results", show_header=True, header_style="bold magenta")
-        deps_table.add_column("PURL/Identifier")
-        deps_table.add_column("Status")
-        deps_table.add_column("Message", style="dim")
+        # deps_table = Table(title="deps.dev Results", show_header=True, header_style="bold magenta")
+        # deps_table.add_column("PURL/Identifier")
+        # deps_table.add_column("Status")
+        # deps_table.add_column("Message", style="dim")
 
-        overall_deps_ok = True
-        for purl, ok, msg in deps_results:
-            status = "PASS" if ok else "FAIL"
-            if not ok:
-                overall_deps_ok = False
-            deps_table.add_row(purl, status, msg)
+        # overall_deps_ok = True
+        # for purl, ok, msg in deps_results:
+        #     status = "PASS" if ok else "FAIL"
+        #     if not ok:
+        #         overall_deps_ok = False
+        #     deps_table.add_row(purl, status, msg)
 
-        console.print(deps_table)
+        # console.print(deps_table)
 
         # ============================================================
         # FINAL RESULT
@@ -305,8 +305,8 @@ def main():
                 console.print(" - Schema validation failed.")
             if not policy_ok:
                 console.print(" - Policy checks failed.")
-            if not overall_deps_ok:
-                console.print(" - deps.dev package reality check failed.")
+            # if not overall_deps_ok:
+            #     console.print(" - deps.dev package reality check failed.")
             sys.exit(2)
 
     # ============================================================
