@@ -16,6 +16,146 @@ Uploading SBOMs into Dependency-Track
 
 Project/version management
 
+Setup & First-Time Configuration
+🚀 1. Prerequisites
+
+Before using this tool, ensure you have:
+
+Python 3.9+
+
+Dependency-Track server (Self-hosted or SaaS)
+
+An API key with correct permissions
+
+A CycloneDX or SPDX SBOM (JSON or XML)
+
+🔐 2. Dependency-Track Setup
+
+To upload SBOMs programmatically, create a restricted-scoped API key.
+
+Required roles / permissions
+
+The API key must belong to a user or team that has:
+
+Permission	Purpose
+PROJECT_CREATE	Create new projects when needed
+PORTFOLIO_MANAGEMENT	Update project information
+BOM_UPLOAD	Upload SBOMs to projects
+READ_PROJECT	Read project metadata
+VULNERABILITY_ANALYSIS	Optional, for future extensions
+
+Alternatively, you can assign one of these roles:
+
+Automation
+
+Continuous Integration
+
+Portfolio Manager
+
+⚠️ Admin role is not required and not recommended.
+
+🌐 3. Configure Base URL and API Key
+
+Your tool reads settings from environment variables:
+
+DTRACK_BASE_URL=https://your-dependency-track-url
+DTRACK_API_KEY=your_api_key_here
+
+
+You can set them permanently:
+
+Linux / macOS
+export DTRACK_BASE_URL="https://dtrack.company.com"
+export DTRACK_API_KEY="ABC123APIKEY"
+
+Windows PowerShell
+setx DTRACK_BASE_URL "https://dtrack.company.com"
+setx DTRACK_API_KEY "ABC123APIKEY"
+
+Windows CMD
+set DTRACK_BASE_URL=https://dtrack.company.com
+set DTRACK_API_KEY=ABC123APIKEY
+
+
+The tool automatically reads these values when running uploads.
+
+🛠️ 4. How Uploading Works
+
+When you run:
+
+python -m main upload --file sbom.json
+
+
+The tool:
+
+Checks whether you want to upload to:
+
+an existing project
+
+or a new project
+
+Validates whether the project exists
+
+if found → uses its UUID
+
+if not → creates one
+
+Generates or bumps the version if uploading again
+
+Uploads the SBOM via Dependency-Track API:
+
+POST /api/v1/bom
+
+
+Prints confirmation and project metadata
+
+📦 5. Example: Uploading an SBOM
+python -m main upload --file myapp_sbom.json
+
+
+Output:
+
+Do you want to upload to an existing project? (y/n)
+Auto-bumping version: 1.2 → 1.3
+BOM uploaded successfully.
+Project: MyApp
+Version: 1.3
+
+🧪 6. SBOM Validation (Local Only)
+
+You can validate any SBOM without uploading:
+
+python -m main validate --file sbom.xml
+
+
+Validation includes:
+
+File reading / format detection
+
+Schema validation (CycloneDX & SPDX; dynamic XSD loading)
+
+Semantic validation
+
+Policy enforcement
+
+deps.dev reality checks (with planned fallbacks: osv.dev, Libraries.io, Maven Central, PyPI, npm registry, etc.)
+
+🧩 7. Environment Variable Summary
+Variable	Description
+DTRACK_BASE_URL	URL of Dependency-Track (must be accessible)
+DTRACK_API_KEY	API key with required permissions
+(future) VALIDATOR_POLICY_FILE	Override default policy.yaml
+(future) VALIDATOR_DISABLE_DEPSDEV	Skip deps.dev checks
+📁 8. Optional: Config via .env file
+
+Create a .env file:
+
+DTRACK_BASE_URL=https://dtrack.company.com
+DTRACK_API_KEY=ABC123APIKEY
+
+
+Tool automatically loads it when python-dotenv is installed.
+
 Features
 1. SBOM Detection & Schema Validation
 
