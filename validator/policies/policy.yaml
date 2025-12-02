@@ -7,17 +7,17 @@ policies:
     id: BOM_FORMAT_REQUIRED
     display_name: "BOM Format Required"
     category: bom
-    description: "SBOM must define bomFormat (CycloneDX / SPDX)."
+    description: "SBOM must define bomFormat (CycloneDX or SPDX)."
     reason: "Required by NTIA minimum elements."
     severity: error
     strict: true
 
   require_spec_version:
-    id: BOM_SPEC_VERSION_REQUIRED
+    id: SPEC_VERSION_REQUIRED
     display_name: "Spec Version Required"
     category: bom
     description: "SBOM must define specVersion."
-    reason: "Spec version determines schema and requirements."
+    reason: "Spec version determines schema and validation logic."
     severity: error
     strict: true
 
@@ -26,19 +26,19 @@ policies:
     display_name: "Metadata Section Required"
     category: metadata
     description: "Metadata section must exist in SBOM."
-    reason: "Metadata is mandatory for NTIA minimum elements."
+    reason: "Metadata is required by NTIA minimum elements."
     severity: error
     strict: true
 
   # =====================================================================
-  #  METADATA → ROOT COMPONENT REQUIREMENTS
+  #  METADATA → ROOT COMPONENT
   # =====================================================================
   require_root_component:
     id: ROOT_COMPONENT_REQUIRED
     display_name: "Root Component Required"
     category: metadata
-    description: "SBOM metadata must contain the root component."
-    reason: "The root component identifies what the SBOM describes."
+    description: "SBOM metadata must contain a root component."
+    reason: "Root component identifies the software described by the SBOM."
     severity: error
     strict: true
 
@@ -47,7 +47,7 @@ policies:
     display_name: "Root Component Name Required"
     category: metadata
     description: "Root component must contain a valid name."
-    reason: "Name is required to identify the primary software unit."
+    reason: "Name uniquely identifies the main software artifact."
     severity: error
     strict: true
 
@@ -61,7 +61,7 @@ policies:
     strict: true
 
   # =====================================================================
-  #  METADATA → SUPPLIER REQUIREMENTS
+  #  METADATA → SUPPLIER
   # =====================================================================
   require_metadata_supplier:
     id: METADATA_SUPPLIER_REQUIRED
@@ -76,8 +76,8 @@ policies:
     id: METADATA_SUPPLIER_NAME_REQUIRED
     display_name: "Metadata Supplier Name Required"
     category: metadata
-    description: "Supplier must include supplier.name."
-    reason: "Supplier identity required for traceability."
+    description: "Metadata.supplier must contain supplier.name."
+    reason: "Ensures traceability and ownership."
     severity: error
     strict: true
 
@@ -102,33 +102,39 @@ policies:
     severity: error
     strict: true
 
-  validate_version_semver:
-    id: COMPONENT_VERSION_INVALID
-    display_name: "Invalid SemVer Version"
+  require_description:
+    id: COMPONENT_DESCRIPTION_MISSING
+    display_name: "Component Description Missing"
     category: components
-    description: "Component version is not valid semantic versioning."
-    reason: "Broken SemVer versions cause scanning and matching failures."
-    severity: warning
+    description: "Component description is optional but recommended."
+    reason: "Descriptions improve readability and understanding."
+    severity: off
     strict: false
 
   require_supplier:
     id: COMPONENT_SUPPLIER_MISSING
     display_name: "Component Supplier Missing"
     category: components
-    description: "Supplier must be provided for each component."
-    reason: "Supplier is part of SBOM identity."
+    description: "Each component should provide supplier information."
+    reason: "Attribution helps in trust and supply-chain responsibilities."
     severity: warning
     strict: false
 
-  # =====================================================================
-  #  LICENSE REQUIREMENTS
-  # =====================================================================
-  require_license:
-    id: LICENSE_MISSING
-    display_name: "License Missing"
-    category: license
-    description: "Component must declare a license or license object."
-    reason: "License information required by NTIA."
+  require_purl:
+    id: PURL_MISSING
+    display_name: "PURL Missing"
+    category: identity
+    description: "Component missing Package URL (PURL)."
+    reason: "PURL is required for package identity and vulnerability match."
+    severity: error
+    strict: true
+
+  validate_version_semver:
+    id: COMPONENT_VERSION_INVALID
+    display_name: "Invalid SemVer Version"
+    category: components
+    description: "Component version is not valid semantic versioning."
+    reason: "Invalid versions break SBOM consumers and scanners."
     severity: warning
     strict: false
 
@@ -136,22 +142,19 @@ policies:
     id: LICENSE_UNKNOWN
     display_name: "Invalid SPDX License Identifier"
     category: license
-    description: "Component contains unknown or invalid SPDX license ID."
-    reason: "Ensures license fields follow SPDX standard."
+    description: "Invalid SPDX license tokens detected."
+    reason: "License fields must follow SPDX rules."
     severity: warning
     strict: false
 
-  # =====================================================================
-  #  IDENTIFIERS
-  # =====================================================================
-  require_purl:
-    id: PURL_MISSING
-    display_name: "PURL Missing"
-    category: identity
-    description: "Component missing Package URL."
-    reason: "PURL required for package identity."
-    severity: error
-    strict: true
+  require_license:
+    id: LICENSE_MISSING
+    display_name: "License Missing"
+    category: license
+    description: "Component must declare a license or license object."
+    reason: "License information is required by NTIA."
+    severity: warning
+    strict: false
 
   require_cpe_or_purl:
     id: IDENTIFIER_MISSING
@@ -163,25 +166,46 @@ policies:
     strict: false
 
   # =====================================================================
-  #  DEPENDENCIES
+  #  AUTHOR & TIMESTAMP
+  # =====================================================================
+  require_author:
+    id: AUTHOR_REQUIRED
+    display_name: "Author Missing"
+    category: metadata
+    description: "Authors must be provided in the metadata."
+    reason: "Creator information is required for traceability."
+    severity: off
+    strict: false
+
+  require_timestamp:
+    id: TIMESTAMP_MISSING
+    display_name: "Timestamp Required"
+    category: metadata
+    description: "SBOM must contain a metadata timestamp."
+    reason: "Timestamps help identify SBOM freshness."
+    severity: off
+    strict: false
+
+  # =====================================================================
+  #  DEPENDENCY GRAPH VALIDATION
   # =====================================================================
   require_dependencies:
     id: DEPENDS_ON_MISSING
     display_name: "Dependencies Missing"
     category: dependencies
     description: "Dependency graph missing or empty."
-    reason: "Dependencies enable vulnerability and supply chain tracing."
+    reason: "Dependencies enable traceability and vulnerability impact analysis."
     severity: error
     strict: true
 
   # =====================================================================
-  #  HYGIENE & OPTIONAL CHECKS
+  #  HYGIENE
   # =====================================================================
   component_duplicate:
     id: COMPONENT_DUPLICATE
     display_name: "Duplicate Component Detected"
     category: hygiene
-    description: "Duplicate components detected in SBOM."
+    description: "Duplicate components detected."
     reason: "Duplicates can cause dependency resolution issues."
     severity: error
     strict: true
