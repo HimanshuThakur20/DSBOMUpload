@@ -19,6 +19,10 @@ DEFAULT_POLICY_PATH = os.path.join(
 )
 
 
+# =====================================================================
+# RESULT CONTAINER
+# =====================================================================
+
 @dataclass
 class PolicyCheckResult:
     rule: str
@@ -32,6 +36,7 @@ class PolicyCheckResult:
     details: Any = None
 
     def __post_init__(self):
+        # Normalize text fields to avoid None values
         self.rule = str(self.rule)
         self.id = str(self.id)
         self.severity = str(self.severity)
@@ -42,14 +47,21 @@ class PolicyCheckResult:
         self.reason = str(self.reason)
 
 
+# =====================================================================
+# POLICY ENFORCER
+# =====================================================================
+
 class PolicyEnforcer:
 
     def __init__(self, policy_path: str | None = None):
         self.policy_path = policy_path or DEFAULT_POLICY_PATH
         self.policy = self._load_policy()
 
-    # ---------------------------------------------------------------------
+    # -----------------------------------------------------------------
     def _load_policy(self) -> Dict[str, Any]:
+        """
+        Loads YAML policy file and normalizes structure.
+        """
         if not os.path.exists(self.policy_path):
             return {"policies": {}}
 
@@ -57,28 +69,35 @@ class PolicyEnforcer:
             raise RuntimeError("pyyaml not installed. Run: pip install pyyaml")
 
         with open(self.policy_path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+            raw = yaml.safe_load(f) or {}
 
-        raw = data.get("policies", {})
+        policies = raw.get("policies", {})
 
-        # Normalize list → dict (old policy compatibility)
-        if isinstance(raw, list):
+        # Support old formats: list → dict
+        if isinstance(policies, list):
             normalized = {}
-            for item in raw:
+            for item in policies:
                 if isinstance(item, dict):
                     for k, v in item.items():
                         normalized[k] = v
             return {"policies": normalized}
 
-        if not isinstance(raw, dict):
+        if not isinstance(policies, dict):
             return {"policies": {}}
 
-        return {"policies": raw}
+        return {"policies": policies}
 
-    # ---------------------------------------------------------------------
+    # -----------------------------------------------------------------
     def enforce(self, detection_result, parsed_bom, filename=None):
+        """
+        Run semantic checks + apply policy rules.
 
-        checks = run_semantic_checks(
+        - Missing policy entries = SKIP (as per your request)
+        - strict=true + failed → FAIL
+        - severity=warning → WARN
+        - severity=off → SKIP
+        """
+        semantic_results = run_semantic_checks(
             parsed_bom,
             detection_result.format,
             detection_result.bom_type,
@@ -89,44 +108,69 @@ class PolicyEnforcer:
         results: List[PolicyCheckResult] = []
         overall_ok = True
 
-        for check_name, check_info in checks.items():
+        for check_name, check_info in semantic_results.items():
 
-            cfg = policy_cfg.get(check_name, {})
+            # =======================================================
+            # 1. Load rule from policy.yaml
+            # =======================================================
+            cfg = policy_cfg.get(check_name)
 
-            # --- Severities allowed → error / warning / notice / off
-            if isinstance(cfg, str):
-                severity = cfg
-                rule_id = check_name.upper()
-                display_name = check_name
-                category = "general"
-                description = ""
-                reason = ""
-            else:
-                severity = cfg.get("severity", "off")
-                rule_id = cfg.get("id", check_name.upper())
-                display_name = cfg.get("display_name", check_name)
-                category = cfg.get("category", "general")
-                description = cfg.get("description", "")
-                reason = cfg.get("reason", "")
+            # Rule not defined → AUTO-SKIP (optional behavior)
+            if cfg is None:
+                results.append(
+                    PolicyCheckResult(
+                        rule=check_name,
+                        id=check_name.upper(),
+                        severity="off",
+                        status="SKIP",
+                        message=f"Rule '{check_name}' not defined in policy. Skipped.",
+                        category="undefined",
+                        description="",
+                        reason="Rule not present in policy configuration.",
+                        details=None
+                    )
+                )
+                continue
+
+            # =======================================================
+            # 2. Extract policy rule properties
+            # =======================================================
+            severity = cfg.get("severity", "off")          # error / warning / off
+            strict = cfg.get("strict", False)
+            rule_id = cfg.get("id", check_name.upper())
+            display_name = cfg.get("display_name", check_name)
+            category = cfg.get("category", "general")
+            description = cfg.get("description", "")
+            reason = cfg.get("reason", "")
 
             passed = check_info.get("passed", False)
             message = check_info.get("message", "")
             details = check_info.get("details", None)
 
-            # ----- Status logic (colorless)
+            # =======================================================
+            # 3. Detemine status
+            # =======================================================
             if severity == "off":
                 status = "SKIP"
+
             elif passed:
                 status = "PASS"
+
             else:
-                if severity in ("warning", "notice"):
+                if severity == "warning":
                     status = "WARN"
                 else:
                     status = "FAIL"
 
+            # =======================================================
+            # 4. Affect overall validation result
+            # =======================================================
             if status == "FAIL":
                 overall_ok = False
 
+            # =======================================================
+            # 5. Store the result
+            # =======================================================
             results.append(
                 PolicyCheckResult(
                     rule=display_name,

@@ -14,7 +14,6 @@ from packaging import version
 from validator.policy_enforcer import PolicyEnforcer
 from validator.semantic_validator import xml_child_text
 
-
 console = Console()
 
 
@@ -47,7 +46,7 @@ def main():
     command = sys.argv[1]
 
     # ============================================================
-    # list-projects
+    # LIST PROJECTS
     # ============================================================
     if command == "list-projects":
         projects = get_projects() or []
@@ -66,7 +65,7 @@ def main():
         sys.exit(0)
 
     # ============================================================
-    # validate
+    # VALIDATE
     # ============================================================
     elif command == "validate":
         if "--file" not in sys.argv:
@@ -80,9 +79,9 @@ def main():
 
         console.print(f"[bold]Validating BOM:[/bold] {bom_file}")
 
-        # -----------------------------
-        # PHASE 1 — parsing
-        # -----------------------------
+        # ----------------------------------------------------------
+        # PHASE 1
+        # ----------------------------------------------------------
         _print_phase_header("PHASE 1 — File / Parsing / SBOM Detection")
         res = validate_bom_file(bom_file)
 
@@ -102,22 +101,23 @@ def main():
         console.print(f"[green]✔ SBOM Type:[/green] {res.bom_type}")
         console.print(f"[green]✔ specVersion:[/green] {res.spec_version}")
 
-        # -----------------------------
-        # PHASE 2 — schema validation
-        # -----------------------------
+        # ----------------------------------------------------------
+        # PHASE 2 — SCHEMA VALIDATION (SOFT MODE)
+        # ----------------------------------------------------------
         _print_phase_header("PHASE 2 — Schema Validation (dynamic)")
 
         if res.phase2_schema_ok:
             console.print("[green]✔ Schema validation passed.[/green]")
         else:
-            console.print("[red]❌ Schema validation failed.[/red]")
+            console.print("[yellow]⚠ Schema validation failed — continuing in soft mode.[/yellow]")
             for e in res.phase2_schema_errors:
                 console.print(f"  • {e}")
-            sys.exit(1)
+            # IMPORTANT: DO NOT EXIT
+            # soft mode enabled
 
-        # ============================================================
-        # PHASE 3 — Semantic + Policy
-        # ============================================================
+        # ----------------------------------------------------------
+        # PHASE 3 — SEMANTIC + POLICY
+        # ----------------------------------------------------------
         _print_phase_header("PHASE 3 — Semantic checks & Policy enforcement")
 
         enforcer = PolicyEnforcer()
@@ -139,9 +139,9 @@ def main():
                 return "[white]SKIP[/white]"
             return status
 
-        # -----------------------------------------
-        # CI MINIMAL TABLE
-        # -----------------------------------------
+        # ---------------------------
+        # CI TABLE
+        # ---------------------------
         ci_table = Table(title="Policy Results (CI Minimal)", show_header=True, header_style="bold white")
         ci_table.add_column("Rule")
         ci_table.add_column("Severity")
@@ -149,26 +149,21 @@ def main():
         ci_table.add_column("Message", style="dim")
 
         for pr in policy_results:
-            ci_table.add_row(
-                pr.rule,
-                pr.severity,
-                colorize(pr.status),
-                pr.message
-            )
+            ci_table.add_row(pr.rule, pr.severity, colorize(pr.status), pr.message)
 
         console.print(ci_table)
 
+        # Semantic status summary
         if not policy_ok:
             console.print("[red]Policy checks failed.[/red]")
         else:
             console.print("[green]Policy checks passed.[/green]")
 
-        # -----------------------------------------
-        # DETAILED OUTPUT (IMPROVED DETAILS BLOCK)
-        # -----------------------------------------
+                # ----------------------------------------------------------
+        # DETAILS BLOCK
+        # ----------------------------------------------------------
         console.print("\n[bold underline]Detailed Policy Breakdown[/bold underline]\n")
 
-        # dedupe rules
         unique_results = []
         seen = set()
         for pr in policy_results:
@@ -176,70 +171,126 @@ def main():
                 seen.add(pr.rule)
                 unique_results.append(pr)
 
-
+        # ----------------------------------------------------------
+        # FIXED summarize_details() FUNCTION
+        # ----------------------------------------------------------
         def summarize_details(details):
             """
-            Create developer-friendly details:
-            - extract component name/version/purl for XML/JSON
-            - fallback to bom-ref
-            - truncate if huge
+            Convert raw details into readable component summaries.
+
+            Fixes:
+            - Strings no longer split into characters
+            - XML and JSON objects formatted consistently
+            - Handles tuples returned by semantic checks (e.g., version errors)
             """
 
-            if not details:
+            if details is None:
                 return None
 
             simplified = []
-
-            # limit large detail lists
             limit = 20
             extra = 0
 
+            # Case: details is a single string
+            if isinstance(details, str):
+                return [details]
+
+            # Case: not a list/tuple → convert directly
+            if not isinstance(details, (list, tuple)):
+                return [str(details)]
+
+            # Process list items
             for item in details:
+
                 if len(simplified) >= limit:
                     extra = len(details) - limit
                     break
 
-                # XML element?
+                # ----------------------------------------------------------
+                # Case 1 — Tuple of (component, version)
+                # ----------------------------------------------------------
+                if isinstance(item, tuple) and len(item) == 2:
+                    comp, ver = item
+
+                    # JSON component
+                    if isinstance(comp, dict):
+                        name = comp.get("name", "<no-name>")
+                        purl = comp.get("purl")
+                        cref = comp.get("bom-ref")
+
+                        entry = f"{name} version={ver}"
+                        if purl:
+                            entry += f" purl={purl}"
+                        if cref:
+                            entry += f" bom-ref={cref}"
+                        simplified.append(entry)
+                        continue
+
+                    simplified.append(str(item))
+                    continue
+
+                # ----------------------------------------------------------
+                # Case 2 — XML element
+                # ----------------------------------------------------------
                 if hasattr(item, "tag"):
                     name = xml_child_text(item, "name") or "<no-name>"
                     version = xml_child_text(item, "version")
                     purl = xml_child_text(item, "purl")
                     cref = item.get("bom-ref") if hasattr(item, "get") else None
 
-                # JSON dict?
-                elif isinstance(item, dict):
-                    name = item.get("name") or "<no-name>"
+                    entry = name
+                    if version:
+                        entry += f" version={version}"
+                    if purl:
+                        entry += f" purl={purl}"
+                    if cref:
+                        entry += f" bom-ref={cref}"
+
+                    simplified.append(entry)
+                    continue
+
+                # ----------------------------------------------------------
+                # Case 3 — JSON dict
+                # ----------------------------------------------------------
+                if isinstance(item, dict):
+                    name = item.get("name", "<no-name>")
                     version = item.get("version")
                     purl = item.get("purl")
                     cref = item.get("bom-ref")
-                else:
-                    # fallback for unexpected types
-                    simplified.append(str(item))
+
+                    entry = name
+                    if version:
+                        entry += f" version={version}"
+                    if purl:
+                        entry += f" purl={purl}"
+                    if cref:
+                        entry += f" bom-ref={cref}"
+
+                    simplified.append(entry)
                     continue
 
-                line = f"{name}"
-                if version:
-                    line += f" version={version}"
-                if purl:
-                    line += f" purl={purl}"
-                if cref:
-                    line += f" bom-ref={cref}"
+                # ----------------------------------------------------------
+                # Case 4 — String (full string, not characters)
+                # ----------------------------------------------------------
+                if isinstance(item, str):
+                    simplified.append(item)
+                    continue
 
-                simplified.append(line)
+                # ----------------------------------------------------------
+                # Fallback
+                # ----------------------------------------------------------
+                simplified.append(str(item))
 
             if extra > 0:
                 simplified.append(f"... ({extra} more items not shown)")
 
             return simplified
 
-
+        # ----------------------------------------------------------
+        # OUTPUT EACH RULE
+        # ----------------------------------------------------------
         for pr in unique_results:
-
-            # map display_name → yaml key
-            cfg = next(
-                (v for k, v in policy_cfg.items() if v.get("display_name") == pr.rule),
-                {}
-            )
+            cfg = next((v for k, v in policy_cfg.items() if v.get("display_name") == pr.rule), {})
 
             category = cfg.get("category", "unknown")
             description = cfg.get("description", "No description provided.")
@@ -257,7 +308,6 @@ def main():
             console.print(f"[white]Reason:[/white] {reason}")
             console.print(f"[white]Message:[/white] {pr.message}")
 
-            # improved details
             formatted_details = summarize_details(pr.details)
             if formatted_details:
                 console.print("[white]Details:[/white]")
@@ -266,36 +316,12 @@ def main():
 
             console.print("-" * 80)
 
-
-
-        # # ============================================================
-        # # PHASE 4 — deps.dev reality check
-        # # ============================================================
-        # _print_phase_header("PHASE 4 — deps.dev package reality check (always ON)")
-
-        # try:
-        #     deps_results = perform_depsdev_validation(res.format, res.parsed)
-        # except Exception as e:
-        #     console.print(f"[yellow]⚠ deps.dev validation failed to run: {e}[/yellow]")
-        #     deps_results = []
-
-        # deps_table = Table(title="deps.dev Results", show_header=True, header_style="bold magenta")
-        # deps_table.add_column("PURL/Identifier")
-        # deps_table.add_column("Status")
-        # deps_table.add_column("Message", style="dim")
-
-        # overall_deps_ok = True
-        # for purl, ok, msg in deps_results:
-        #     status = "PASS" if ok else "FAIL"
-        #     if not ok:
-        #         overall_deps_ok = False
-        #     deps_table.add_row(purl, status, msg)
-
-        # console.print(deps_table)
-
         # ============================================================
         # FINAL RESULT
         # ============================================================
+
+        overall_deps_ok = True   # deps.dev disabled
+
         if res.phase2_schema_ok and policy_ok and overall_deps_ok:
             console.print("\n[bold green]✔ All validation phases passed. SBOM is valid.[/bold green]")
             sys.exit(0)
@@ -305,12 +331,10 @@ def main():
                 console.print(" - Schema validation failed.")
             if not policy_ok:
                 console.print(" - Policy checks failed.")
-            # if not overall_deps_ok:
-            #     console.print(" - deps.dev package reality check failed.")
             sys.exit(2)
 
     # ============================================================
-    # upload
+    # UPLOAD
     # ============================================================
     elif command == "upload":
         if "--file" not in sys.argv:

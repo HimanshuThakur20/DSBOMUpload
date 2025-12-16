@@ -1,7 +1,8 @@
-# validator/semantic_validator.py
 """
-Optimized, modular, auto-registering semantic SBOM validator.
-Supports CycloneDX + SPDX for JSON & XML.
+Semantic SBOM Validator (CycloneDX + SPDX)
+Implements all rules listed in updated policy.yaml.
+Optional fields (Origin, EOL, Usage Restrictions, etc.)
+generate WARN when missing (Option B).
 """
 
 import re
@@ -9,25 +10,18 @@ from typing import Any, Dict, List, Callable
 from packaging.version import Version, InvalidVersion
 from lxml import etree
 
-# SPDX license id heuristic
-SPDX_ID_PATTERN = re.compile(r"^[A-Za-z0-9\.\-\+:]+$")
-
-# ======================================================================
-# CHECK REGISTRATION
-# ======================================================================
-
 CHECK_REGISTRY: Dict[str, Callable] = {}
 
 def sbom_check(name: str):
-    """Decorator to auto-register a semantic validation check."""
+    """Decorator to auto-register semantic validation checks."""
     def wrapper(func):
         CHECK_REGISTRY[name] = func
         return func
     return wrapper
 
-# ======================================================================
-# HELPERS — UNIFIED ACCESS LAYER
-# ======================================================================
+# ---------------------------
+# Helpers
+# ---------------------------
 
 def is_json(parsed) -> bool:
     return isinstance(parsed, dict)
@@ -40,66 +34,53 @@ def get_ns(root):
 
 def get_xml_list(root, tag):
     ns = get_ns(root)
-    if ns:
-        return root.findall(f".//{{{ns}}}{tag}")
-    return root.findall(f".//{tag}")
+    return root.findall(f".//{{{ns}}}{tag}") if ns else root.findall(f".//{tag}")
 
 def xml_child_text(elem, name: str):
-    """Return text of first child matching tag ending with name."""
-    for child in elem:
-        if isinstance(child.tag, str) and child.tag.endswith(name):
-            return (child.text or "").strip()
+    if elem is None:
+        return None
+    for ch in elem:
+        if isinstance(ch.tag, str) and ch.tag.endswith(name):
+            return (ch.text or "").strip()
     return None
 
-# ======================================================================
-# SBOM COMPONENT/PACKAGE EXTRACTORS
-# ======================================================================
+# ---------------------------
+# Component extractors
+# ---------------------------
 
 def get_components(parsed, fmt, bom_type):
-    """Unified component/package extractor."""
     if bom_type == "spdx":
-        return get_spdx_packages(parsed, fmt)
-    return get_cyclonedx_components(parsed, fmt)
+        if fmt == "json":
+            return parsed.get("packages", []) or []
+        return get_xml_list(get_root(parsed), "Package")
 
-def get_cyclonedx_components(parsed, fmt):
+    # CycloneDX
     if fmt == "json":
         return parsed.get("components", []) or []
-    root = get_root(parsed)
-    return get_xml_list(root, "component")
+    return get_xml_list(get_root(parsed), "component")
 
-def get_spdx_packages(parsed, fmt):
-    if fmt == "json":
-        return parsed.get("packages", []) or []
-    root = get_root(parsed)
-    return get_xml_list(root, "Package")
 
-# ======================================================================
-# COMMON CHECK UTIL
-# ======================================================================
+# ---------------------------
+# Generic missing checker
+# ---------------------------
 
-def check_missing(parsed_list, extract_fn) -> (bool, List):
-    """Generic helper for required-field checks."""
+def check_missing(parsed_list, extract_fn):
     missing = []
-    for elem in parsed_list:
-        value = extract_fn(elem)
-        if not value:
-            missing.append(elem)
+    for item in parsed_list:
+        if not extract_fn(item):
+            missing.append(item)
     return (len(missing) == 0, missing)
 
-# ======================================================================
-# REGISTERED CHECKS
-# ======================================================================
 
-# ----------------------------------------------------------------------
+# ============================================================
+# REQUIRED FIELDS
+# ============================================================
+
 @sbom_check("require_component_name")
 def require_component_name(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
-
-    def extract(item):
-        if fmt == "json":
-            return item.get("name")
-        return xml_child_text(item, "name")
-
+    def extract(x):
+        return x.get("name") if fmt == "json" else xml_child_text(x, "name")
     ok, missing = check_missing(items, extract)
     return {
         "passed": ok,
@@ -107,114 +88,73 @@ def require_component_name(parsed, fmt, bom_type):
         "details": missing,
     }
 
-# ======================================================================
-# 🔥 FULLY REWRITTEN VERSION CHECK (SPEC + REAL-WORLD + FUTURE-PROOF)
-# ======================================================================
 
-REQUIRES_VERSION_TYPES = {
-    "library",
-    "framework",
-    "application",
-    "container",
-    "operating-system",
+# ---------------------------
+# Component Version Required
+# ---------------------------
+
+VERSION_TYPES_REQUIRING_VERSION = {
+    "library", "framework", "application", "container", "operating-system"
 }
 
-FLOATING_VERSION_MARKERS = {
-    "latest", "master", "main", "head", "dev", "develop", "*"
-}
+VERSION_FLOATING_MARKERS = {"latest", "main", "master", "dev", "head", "*"}
 
-
-def normalize_purl_version(purl: str | None):
-    if not purl or '@' not in purl:
-        return None
-
-    ver = purl.split('@', 1)[1]
-    if '?' in ver:
-        ver = ver.split('?', 1)[0]
-    return ver.strip() or None
-
-
-def cyclonedx_extract_type(item, fmt):
-    if fmt == "json":
-        return (item.get("type") or "").lower()
-    return xml_child_text(item, "type") or ""
-
-
-def cyclonedx_extract_version(item, fmt):
+def extract_version(item, fmt):
     return item.get("version") if fmt == "json" else xml_child_text(item, "version")
 
+def extract_type(item, fmt):
+    return (item.get("type") or "").lower() if fmt == "json" else xml_child_text(item, "type") or ""
 
-def cyclonedx_extract_purl(item, fmt):
+def extract_purl(item, fmt):
     return item.get("purl") if fmt == "json" else xml_child_text(item, "purl")
 
+def purl_version(purl: str | None):
+    if not purl or "@" not in purl:
+        return None
+    v = purl.split("@")[1].split("?")[0]
+    return v.strip() or None
 
 @sbom_check("require_component_version")
 def require_component_version(parsed, fmt, bom_type):
-    """
-    Robust, spec-aligned version-required logic.
-    """
     items = get_components(parsed, fmt, bom_type)
 
-    # SPDX handles version differently → skip required version enforcement
-    if bom_type == "spdx":
-        return {
-            "passed": True,
-            "message": "SPDX version rule not enforced here",
-            "details": None,
-        }
-
     missing = []
-    total = len(items)
-
     for item in items:
-        # 1. extract
-        ctype = cyclonedx_extract_type(item, fmt)
-        version = cyclonedx_extract_version(item, fmt)
-        purl = cyclonedx_extract_purl(item, fmt)
+        ctype = extract_type(item, fmt)
+        version = extract_version(item, fmt)
+        p = extract_purl(item, fmt)
 
-        # 2. bom-ref or placeholder for reporting
-        cref = item.get("bom-ref") if fmt == "json" else "<xml_component>"
-        cref = str(cref)
-
-        # 3. skip synthetic
-        if cref.startswith(("urn:uuid:", "internal:", "file:", "sha256:", "docker:")):
-            continue
-
-        # 4. version not required for these types
-        requires_version = ctype in REQUIRES_VERSION_TYPES
-
-        # 5. if version exists → PASS
+        # If version exists → OK
         if version:
             continue
 
-        # 6. if PURL embeds a usable version → PASS
-        purl_ver = normalize_purl_version(purl)
-        if purl_ver:
-            if purl_ver.lower() in FLOATING_VERSION_MARKERS:
-                continue
-            else:
-                continue  # concrete version → PASS
+        # PURL version fallback
+        pv = purl_version(p)
+        if pv and pv.lower() not in VERSION_FLOATING_MARKERS:
+            continue
 
-        # 7. no version + required → FAIL
-        if requires_version:
-            missing.append(cref)
+        # Required type?
+        if ctype in VERSION_TYPES_REQUIRING_VERSION:
+            missing.append(item)
 
     passed = len(missing) == 0
-    msg = f"{len(missing)}/{total} components missing required version"
-
     return {
         "passed": passed,
-        "message": msg,
+        "message": f"{len(missing)}/{len(items)} components missing required version",
         "details": missing,
     }
 
-# ----------------------------------------------------------------------
+
+# ---------------------------
+# Component Description Required (STRICT)
+# ---------------------------
+
 @sbom_check("require_description")
 def require_description(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
 
-    def extract(item):
-        return item.get("description") if fmt == "json" else xml_child_text(item, "description")
+    def extract(x):
+        return x.get("description") if fmt == "json" else xml_child_text(x, "description")
 
     ok, missing = check_missing(items, extract)
     return {
@@ -223,17 +163,19 @@ def require_description(parsed, fmt, bom_type):
         "details": missing,
     }
 
-# ----------------------------------------------------------------------
+
+# ---------------------------
+# Component License Required
+# ---------------------------
+
 @sbom_check("require_license")
 def require_license(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
 
-    def extract(item):
+    def extract(x):
         if fmt == "json":
-            if bom_type == "spdx":
-                return item.get("licenseConcluded") or item.get("licenseDeclared")
-            return item.get("licenses")
-        return xml_child_text(item, "license") or xml_child_text(item, "licenseDeclared")
+            return x.get("licenses")
+        return xml_child_text(x, "license")
 
     ok, missing = check_missing(items, extract)
     return {
@@ -242,18 +184,16 @@ def require_license(parsed, fmt, bom_type):
         "details": missing,
     }
 
-# ----------------------------------------------------------------------
+
+# ---------------------------
+# Supplier Required
+# ---------------------------
+
 @sbom_check("require_supplier")
 def require_supplier(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
-
-    def extract(item):
-        return (
-            item.get("supplier") or item.get("PackageSupplier")
-            if fmt == "json" else
-            xml_child_text(item, "supplier") or xml_child_text(item, "PackageSupplier")
-        )
-
+    def extract(x):
+        return x.get("supplier") if fmt == "json" else xml_child_text(x, "supplier")
     ok, missing = check_missing(items, extract)
     return {
         "passed": ok,
@@ -261,18 +201,16 @@ def require_supplier(parsed, fmt, bom_type):
         "details": missing,
     }
 
-# ----------------------------------------------------------------------
+
+# ---------------------------
+# PURL required
+# ---------------------------
+
 @sbom_check("require_purl")
 def require_purl(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
-
-    def extract(item):
-        return (
-            item.get("purl") or item.get("PackageDownloadLocation")
-            if fmt == "json" else
-            xml_child_text(item, "purl") or xml_child_text(item, "PackageDownloadLocation")
-        )
-
+    def extract(x):
+        return x.get("purl") if fmt == "json" else xml_child_text(x, "purl")
     ok, missing = check_missing(items, extract)
     return {
         "passed": ok,
@@ -280,104 +218,98 @@ def require_purl(parsed, fmt, bom_type):
         "details": missing,
     }
 
-# ----------------------------------------------------------------------
-@sbom_check("require_dependencies")
-def require_dependencies(parsed, fmt, bom_type):
-    if bom_type == "cyclonedx":
-        present = bool(parsed.get("dependencies")) if fmt == "json" else \
-                  bool(get_xml_list(get_root(parsed), "dependencies"))
-    else:
-        present = any(
-            r.get("relationshipType") == "DEPENDS_ON"
-            for r in (parsed.get("relationships") or [])
-        ) if fmt == "json" else \
-        bool(get_xml_list(get_root(parsed), "relationship"))
 
-    return {
-        "passed": present,
-        "message": "Dependencies present" if present else "Dependencies missing",
-        "details": None,
-    }
+# ============================================================
+# OPTIONAL COMPONENT METADATA (B → WARN)
+# ============================================================
 
-# ----------------------------------------------------------------------
-@sbom_check("require_author")
-def require_author(parsed, fmt, bom_type):
-    if bom_type == "cyclonedx":
-        if fmt == "json":
-            authors = parsed.get("metadata", {}).get("authors") or []
-            return {"passed": bool(authors),
-                    "message": "Authors present" if authors else "No authors",
-                    "details": authors}
-        authors = get_xml_list(get_root(parsed), "author")
-        return {"passed": bool(authors),
-                "message": "Authors present" if authors else "No authors",
-                "details": authors}
+def optional_field_check(items, fmt, field, xml_field=None):
+    missing = []
 
-    # SPDX
-    if fmt == "json":
-        creators = parsed.get("creator") or parsed.get("creators") or []
-        return {"passed": bool(creators),
-                "message": "Creators present" if creators else "No creators",
-                "details": creators}
-
-    created = xml_child_text(get_root(parsed), "creator")
-    return {
-        "passed": bool(created),
-        "message": "Creator present" if created else "No creator",
-        "details": created,
-    }
-
-# ----------------------------------------------------------------------
-@sbom_check("require_timestamp")
-def require_timestamp(parsed, fmt, bom_type):
-    ts = (
-        parsed.get("metadata", {}).get("timestamp")
-        if fmt == "json" else
-        xml_child_text(get_root(parsed), "timestamp")
-    ) if bom_type == "cyclonedx" else \
-         (parsed.get("created") if fmt == "json" else
-          xml_child_text(get_root(parsed), "created"))
-
-    return {"passed": bool(ts),
-            "message": "Timestamp present" if ts else "No timestamp",
-            "details": ts}
-
-# ----------------------------------------------------------------------
-@sbom_check("validate_version_semver")
-def validate_version_semver(parsed, fmt, bom_type):
-    items = get_components(parsed, fmt, bom_type)
-    bad = []
     for item in items:
-        ver = item.get("version") if fmt == "json" else xml_child_text(item, "version")
-        if ver:
-            try:
-                Version(ver)
-            except InvalidVersion:
-                bad.append((item, ver))
+        if fmt == "json":
+            val = item.get(field)
+        else:
+            val = xml_child_text(item, xml_field or field)
+
+        if not val:
+            missing.append(item)
+
     return {
-        "passed": len(bad) == 0,
-        "message": f"{len(bad)}/{len(items)} non-semver versions",
-        "details": bad,
+        "passed": len(missing) == 0,
+        "message": f"{len(missing)}/{len(items)} missing {field}",
+        "details": missing,
     }
 
-# ----------------------------------------------------------------------
+@sbom_check("component_origin")
+def component_origin(parsed, fmt, bom_type):
+    return optional_field_check(get_components(parsed, fmt, bom_type), fmt, "origin")
+
+
+@sbom_check("release_date")
+def release_date(parsed, fmt, bom_type):
+    return optional_field_check(get_components(parsed, fmt, bom_type), fmt, "releaseDate")
+
+
+@sbom_check("eol_date")
+def eol_date(parsed, fmt, bom_type):
+    return optional_field_check(get_components(parsed, fmt, bom_type), fmt, "eol")
+
+
+@sbom_check("usage_restrictions")
+def usage_restrictions(parsed, fmt, bom_type):
+    return optional_field_check(get_components(parsed, fmt, bom_type), fmt, "usageRestrictions")
+
+
+@sbom_check("comments_notes")
+def comments_notes(parsed, fmt, bom_type):
+    return optional_field_check(get_components(parsed, fmt, bom_type), fmt, "comments")
+
+
+# ============================================================
+# IDENTIFIER CHECK
+# ============================================================
+
+@sbom_check("require_cpe_or_purl")
+def require_cpe_or_purl(parsed, fmt, bom_type):
+    items = get_components(parsed, fmt, bom_type)
+    missing = []
+    for item in items:
+        purl = item.get("purl") if fmt == "json" else xml_child_text(item, "purl")
+        cpe = item.get("cpe") if fmt == "json" else xml_child_text(item, "cpe")
+        if not purl and not cpe:
+            missing.append(item)
+    return {
+        "passed": len(missing) == 0,
+        "message": f"{len(missing)}/{len(items)} missing identifier (purl or cpe)",
+        "details": missing,
+    }
+
+
+# ============================================================
+# LICENSE VALIDATION (warning)
+# ============================================================
+
+SPDX_ID_PATTERN = re.compile(r"^[A-Za-z0-9\.\-\+:]+$")
+
 @sbom_check("validate_spdx_license_id")
 def validate_spdx_license_id(parsed, fmt, bom_type):
     items = get_components(parsed, fmt, bom_type)
     bad = []
+
     for item in items:
         if fmt == "json":
-            lid = item.get("licenseDeclared") or item.get("licenseConcluded")
+            lid = item.get("licenseDeclared")
         else:
             lid = xml_child_text(item, "licenseDeclared")
+
         if not lid:
             continue
 
         for token in re.split(r"[ \t()]+", lid):
-            t = token.strip()
-            if not t or t.upper() in ("AND", "OR", "WITH"):
+            if token.upper() in ("AND", "OR", "WITH"):
                 continue
-            if not SPDX_ID_PATTERN.match(t):
+            if not SPDX_ID_PATTERN.match(token):
                 bad.append((item, lid))
                 break
 
@@ -387,61 +319,34 @@ def validate_spdx_license_id(parsed, fmt, bom_type):
         "details": bad,
     }
 
-# ======================================================================
-# PUBLIC DISPATCHER
-# ======================================================================
 
-def run_semantic_checks(parsed, fmt, bom_type, spec_version=None) -> Dict[str, Dict]:
-    """
-    Automatically runs all registered semantic checks.
-    """
-    results = {}
-    for name, func in CHECK_REGISTRY.items():
+# ============================================================
+# SEMVER VERSION VALIDATOR (warning)
+# ============================================================
+
+@sbom_check("validate_version_semver")
+def validate_version_semver(parsed, fmt, bom_type):
+    items = get_components(parsed, fmt, bom_type)
+    bad = []
+    for item in items:
+        ver = item.get("version") if fmt == "json" else xml_child_text(item, "version")
+        if not ver:
+            continue
         try:
-            results[name] = func(parsed, fmt, bom_type)
-        except Exception as ex:
-            results[name] = {
-                "passed": False,
-                "message": f"Check crashed: {ex}",
-                "details": None,
-            }
-    return results
+            Version(ver)
+        except InvalidVersion:
+            bad.append((item, ver))
 
-# ======================================================================
-# NTIA / BOM STRUCTURE CHECKS (NEW)
-# ======================================================================
-
-@sbom_check("require_bom_format")
-def require_bom_format(parsed, fmt, bom_type):
-    if fmt == "json":
-        ok = bool(parsed.get("bomFormat"))
-        return {
-            "passed": ok,
-            "message": "bomFormat present" if ok else "Missing bomFormat",
-            "details": parsed.get("bomFormat"),
-        }
-    # XML always has bomFormat implied; consider present
-    return {"passed": True, "message": "bomFormat implicit in XML", "details": None}
-
-
-@sbom_check("require_spec_version")
-def require_spec_version(parsed, fmt, bom_type):
-    if fmt == "json":
-        ver = parsed.get("specVersion")
-        return {
-            "passed": bool(ver),
-            "message": "specVersion present" if ver else "Missing specVersion",
-            "details": ver,
-        }
-    # XML: attribute on <bom>
-    root = get_root(parsed)
-    ver = root.attrib.get("version") if root is not None else None
     return {
-        "passed": bool(ver),
-        "message": "specVersion present" if ver else "Missing specVersion",
-        "details": ver,
+        "passed": len(bad) == 0,
+        "message": f"{len(bad)}/{len(items)} non-semver versions",
+        "details": bad,
     }
 
+
+# ============================================================
+# METADATA + ROOT COMPONENT
+# ============================================================
 
 @sbom_check("require_metadata_section")
 def require_metadata_section(parsed, fmt, bom_type):
@@ -454,12 +359,10 @@ def require_metadata_section(parsed, fmt, bom_type):
             "details": meta,
         }
 
-    root = get_root(parsed)
-    meta = get_xml_list(root, "metadata")
-    ok = bool(meta)
+    meta = get_xml_list(get_root(parsed), "metadata")
     return {
-        "passed": ok,
-        "message": "Metadata section present" if ok else "Missing metadata section",
+        "passed": bool(meta),
+        "message": "Metadata section present" if meta else "Missing metadata section",
         "details": meta,
     }
 
@@ -467,20 +370,18 @@ def require_metadata_section(parsed, fmt, bom_type):
 @sbom_check("require_root_component")
 def require_root_component(parsed, fmt, bom_type):
     if fmt == "json":
-        root_cmp = parsed.get("metadata", {}).get("component")
-        ok = isinstance(root_cmp, dict)
+        cmp = parsed.get("metadata", {}).get("component")
         return {
-            "passed": ok,
-            "message": "Root component present" if ok else "Missing root component",
-            "details": root_cmp,
+            "passed": isinstance(cmp, dict),
+            "message": "Root component present" if cmp else "Missing root component",
+            "details": cmp,
         }
 
-    root_elem = get_xml_list(get_root(parsed), "component")
-    ok = bool(root_elem)
+    elems = get_xml_list(get_root(parsed), "component")
     return {
-        "passed": ok,
-        "message": "Root component present" if ok else "Missing root component",
-        "details": root_elem,
+        "passed": bool(elems),
+        "message": "Root component present" if elems else "Missing root component",
+        "details": elems,
     }
 
 
@@ -495,7 +396,6 @@ def require_root_component_name(parsed, fmt, bom_type):
             "details": name,
         }
 
-    # XML
     meta = get_xml_list(get_root(parsed), "metadata")
     if not meta:
         return {"passed": False, "message": "Missing metadata", "details": None}
@@ -523,9 +423,8 @@ def require_root_component_ref(parsed, fmt, bom_type):
     if not meta:
         return {"passed": False, "message": "Missing metadata", "details": None}
 
-    # attribute on <component>
-    comp_elem = meta[0].find(".//*")
-    bref = comp_elem.attrib.get("bom-ref") if comp_elem is not None else None
+    cmp_elem = meta[0].find(".//*")
+    bref = cmp_elem.attrib.get("bom-ref") if cmp_elem is not None else None
     return {
         "passed": bool(bref),
         "message": "Root component bom-ref present" if bref else "Missing root component bom-ref",
@@ -533,28 +432,75 @@ def require_root_component_ref(parsed, fmt, bom_type):
     }
 
 
-# ======================================================================
-# IDENTIFIER RULE — purl OR cpe must be present
-# ======================================================================
+# ============================================================
+# TIMESTAMP + AUTHOR
+# ============================================================
 
-@sbom_check("require_cpe_or_purl")
-def require_cpe_or_purl(parsed, fmt, bom_type):
-    items = get_components(parsed, fmt, bom_type)
-    missing = []
+@sbom_check("require_author")
+def require_author(parsed, fmt, bom_type):
+    if fmt == "json":
+        authors = parsed.get("metadata", {}).get("authors") or []
+        return {
+            "passed": bool(authors),
+            "message": "Authors present" if authors else "No authors",
+            "details": authors,
+        }
 
-    for item in items:
-        if fmt == "json":
-            purl = item.get("purl")
-            cpe = item.get("cpe")
-        else:
-            purl = xml_child_text(item, "purl")
-            cpe = xml_child_text(item, "cpe")
+    # XML
+    authors = get_xml_list(get_root(parsed), "author")
+    return {
+        "passed": bool(authors),
+        "message": "Authors present" if authors else "No authors",
+        "details": authors,
+    }
 
-        if not purl and not cpe:
-            missing.append(item)
+
+@sbom_check("require_timestamp")
+def require_timestamp(parsed, fmt, bom_type):
+    if fmt == "json":
+        ts = parsed.get("metadata", {}).get("timestamp")
+    else:
+        ts = xml_child_text(get_root(parsed), "timestamp")
 
     return {
-        "passed": len(missing) == 0,
-        "message": f"{len(missing)}/{len(items)} missing identifier (purl or cpe)",
-        "details": missing,
+        "passed": bool(ts),
+        "message": "Timestamp present" if ts else "No timestamp",
+        "details": ts,
     }
+
+
+# ============================================================
+# DEPENDENCIES
+# ============================================================
+
+@sbom_check("require_dependencies")
+def require_dependencies(parsed, fmt, bom_type):
+    if fmt == "json":
+        deps = parsed.get("dependencies")
+        ok = bool(deps)
+    else:
+        ok = bool(get_xml_list(get_root(parsed), "dependency"))
+
+    return {
+        "passed": ok,
+        "message": "Dependencies present" if ok else "Dependencies missing",
+        "details": None,
+    }
+
+
+# ============================================================
+# Public dispatcher
+# ============================================================
+
+def run_semantic_checks(parsed, fmt, bom_type, spec_version=None) -> Dict[str, Dict]:
+    results = {}
+    for name, func in CHECK_REGISTRY.items():
+        try:
+            results[name] = func(parsed, fmt, bom_type)
+        except Exception as ex:
+            results[name] = {
+                "passed": False,
+                "message": f"Check crashed: {ex}",
+                "details": None,
+            }
+    return results
