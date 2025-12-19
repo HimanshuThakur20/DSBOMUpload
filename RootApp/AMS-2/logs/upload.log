@@ -1,0 +1,110 @@
+2025-12-19 13:39:37,946 | INFO | Starting SBOM automation for application: AMS
+2025-12-19 13:39:37,946 | INFO | Found 1 SBOM(s) to process
+2025-12-19 13:39:37,998 | INFO | Processing SBOM=AMS_sbom.json version=1.1
+2025-12-19 13:39:38,159 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom
+2025-12-19 13:39:38,164 | INFO | Automation run completed
+2025-12-19 13:50:21,977 | INFO | Starting SBOM automation for application: AMS
+2025-12-19 13:50:21,979 | INFO | Found 2 SBOM(s) to process
+2025-12-19 13:50:22,037 | INFO | Processing SBOM=AMS_sbom.json version=1.2
+2025-12-19 13:50:22,201 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom
+2025-12-19 13:50:22,213 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.2
+2025-12-19 13:50:22,249 | ERROR | Project creation failed for AMS 1.2
+2025-12-19 13:50:22,251 | INFO | Automation run completed
+2025-12-19 16:03:40,801 | INFO | Starting SBOM automation for application: AMS
+2025-12-19 16:03:40,802 | INFO | Found 2 SBOM(s) to process
+2025-12-19 16:03:40,904 | INFO | Processing SBOM=AMS_sbom.json version=1.4
+2025-12-19 16:03:41,087 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false
+2025-12-19 16:03:41,095 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.4
+2025-12-19 16:03:41,134 | ERROR | Project creation failed for AMS 1.4
+2025-12-19 16:03:41,135 | INFO | Automation run completed
+2025-12-19 16:05:06,973 | INFO | Starting SBOM automation for application: AMS-2
+2025-12-19 16:05:06,975 | INFO | Found 2 SBOM(s) to process
+2025-12-19 16:05:07,029 | INFO | Processing SBOM=AMS_sbom.json version=1.0
+2025-12-19 16:05:07,168 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false
+2025-12-19 16:05:07,177 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.0
+2025-12-19 16:05:07,217 | ERROR | Project creation failed for AMS-2 1.0
+2025-12-19 16:05:07,218 | INFO | Automation run completed
+2025-12-19 16:06:28,157 | INFO | Starting SBOM automation for application: AMS-2
+2025-12-19 16:06:28,159 | INFO | Found 2 SBOM(s) to process
+2025-12-19 16:06:28,247 | INFO | Processing SBOM=AMS_sbom.json version=1.1
+2025-12-19 16:06:28,422 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false
+2025-12-19 16:06:28,432 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.1
+2025-12-19 16:06:28,483 | ERROR | Project creation failed for AMS-2 1.1
+2025-12-19 16:06:28,484 | INFO | Automation run completed
+2025-12-19 16:07:05,778 | INFO | Starting SBOM automation for application: AMS-2
+2025-12-19 16:07:05,780 | INFO | Found 2 SBOM(s) to process
+2025-12-19 16:07:05,825 | INFO | Processing SBOM=AMS_sbom.json version=1.2
+2025-12-19 16:07:05,940 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false
+2025-12-19 16:07:05,951 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.2
+2025-12-19 16:07:05,987 | ERROR | Project creation failed for AMS-2 1.2
+2025-12-19 16:07:05,989 | INFO | Automation run completed
+2025-12-19 16:07:43,297 | INFO | Starting SBOM automation for application: AMS-2
+2025-12-19 16:07:43,299 | INFO | Found 2 SBOM(s) to process
+2025-12-19 16:07:43,348 | INFO | Processing SBOM=AMS_sbom.json version=1.3
+2025-12-19 16:07:41,862 | ERROR | Unexpected error uploading AMS_sbom.json
+Traceback (most recent call last):
+  File "D:\SBOM Upload\DSBOMUpload\automation\bulk_sbom_uploader.py", line 162, in process_application
+    result = upload_bom(project["uuid"], sbom_path)
+  File "D:\SBOM Upload\DSBOMUpload\bom.py", line 47, in upload_bom
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\fsfba\AppData\Local\Programs\Python\Python313\Lib\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false
+2025-12-19 16:07:41,873 | INFO | Processing SBOM=project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json version=1.3
+2025-12-19 16:07:41,905 | ERROR | Project creation failed for AMS-2 1.3
+2025-12-19 16:07:41,906 | INFO | Automation run completed

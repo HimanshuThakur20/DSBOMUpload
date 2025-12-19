@@ -15,7 +15,7 @@ def upload_bom(project_uuid, bom_file):
     Uploads a BOM (XML or JSON) file to Dependency-Track.
     Automatically encodes the file in base64 as required by the API.
     """
-    url = f"{get_dtrack_url()}api/v1/bom"
+    url = f"{get_dtrack_url()}api/v1/bom?validate=false"
     headers = get_api_headers()
 
     if not os.path.exists(bom_file):

@@ -1,0 +1,16 @@
+{
+  "run_at": "2025-12-19T10:37:43.299223+00:00",
+  "application": "AMS-2",
+  "results": [
+    {
+      "file": "AMS_sbom.json",
+      "status": "FAILED",
+      "reason": "400 Client Error: Bad Request for url: http://localhost:8081/api/v1/bom?validate=false"
+    },
+    {
+      "file": "project-attribution-sbom+58247_AUCustomerServices$1.0.0-1763354580699.bom.json",
+      "status": "FAILED",
+      "reason": "Project creation failed"
+    }
+  ]
+}
