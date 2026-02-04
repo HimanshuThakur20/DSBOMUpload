@@ -13,6 +13,16 @@ from packaging import version
 # from validator.depsdev_validator import perform_depsdev_validation
 from validator.policy_enforcer import PolicyEnforcer
 from validator.semantic_validator import xml_child_text
+from policy_violations import (
+    get_all_policy_violations,
+    get_project_policy_violations,
+    display_violations_table,
+    display_violation_summary,
+    export_violations_to_json,
+    export_violations_to_csv,
+    get_policies,
+    display_policies_table
+)
 
 console = Console()
 
@@ -38,9 +48,17 @@ def main():
     if len(sys.argv) < 2:
         console.print("[bold yellow]Usage:[/bold yellow] python main.py [command] [options]")
         console.print("[bold]Commands:[/bold]")
-        console.print("  [cyan]list-projects[/cyan]                List all projects in Dependency-Track")
-        console.print("  [cyan]upload --file <path>[/cyan]         Upload a BOM file")
-        console.print("  [cyan]validate --file <path>[/cyan]       Validate a BOM file locally")
+        console.print("  [cyan]list-projects[/cyan]                          List all projects in Dependency-Track")
+        console.print("  [cyan]upload --file <path>[/cyan]                   Upload a BOM file")
+        console.print("  [cyan]validate --file <path>[/cyan]                 Validate a BOM file locally")
+        console.print("  [cyan]list-policies[/cyan]                          List all policies in Dependency-Track")
+        console.print("  [cyan]export-violations[/cyan]                      Export policy violations from Dependency-Track")
+        console.print("    [dim]Options:[/dim]")
+        console.print("      [dim]--project <uuid>[/dim]                   Filter by project UUID")
+        console.print("      [dim]--format <json|csv>[/dim]               Export format (default: display table)")
+        console.print("      [dim]--output <path>[/dim]                   Output file path")
+        console.print("      [dim]--include-suppressed[/dim]              Include suppressed violations")
+        console.print("      [dim]--summary[/dim]                         Show summary statistics")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -380,6 +398,84 @@ def main():
         upload_bom(project["uuid"], bom_file)
         console.print("[green]✔ BOM uploaded successfully.[/green]")
         console.print(f"[cyan]Project:[/cyan] {proj_name} [cyan]Version:[/cyan] {new_version}")
+        sys.exit(0)
+
+    # ============================================================
+    # LIST POLICIES
+    # ============================================================
+    elif command == "list-policies":
+        policies = get_policies()
+        display_policies_table(policies)
+        sys.exit(0)
+
+    # ============================================================
+    # EXPORT POLICY VIOLATIONS
+    # ============================================================
+    elif command == "export-violations":
+        # Parse options
+        project_uuid = None
+        export_format = None
+        output_path = None
+        include_suppressed = "--include-suppressed" in sys.argv
+        show_summary = "--summary" in sys.argv
+
+        if "--project" in sys.argv:
+            idx = sys.argv.index("--project")
+            if idx + 1 < len(sys.argv):
+                project_uuid = sys.argv[idx + 1]
+
+        if "--format" in sys.argv:
+            idx = sys.argv.index("--format")
+            if idx + 1 < len(sys.argv):
+                export_format = sys.argv[idx + 1].lower()
+                if export_format not in ["json", "csv"]:
+                    console.print(f"[red]Error:[/red] Invalid format '{export_format}'. Use 'json' or 'csv'.")
+                    sys.exit(1)
+
+        if "--output" in sys.argv:
+            idx = sys.argv.index("--output")
+            if idx + 1 < len(sys.argv):
+                output_path = sys.argv[idx + 1]
+
+        # Fetch violations
+        console.print("[bold]Fetching policy violations from Dependency-Track...[/bold]")
+        
+        if project_uuid:
+            console.print(f"[dim]Filtering by project: {project_uuid}[/dim]")
+            violations = get_project_policy_violations(project_uuid, suppressed=include_suppressed)
+        else:
+            violations = get_all_policy_violations(suppressed=include_suppressed)
+
+        if not violations:
+            console.print("[yellow]No policy violations found.[/yellow]")
+            sys.exit(0)
+
+        console.print(f"[green]Found {len(violations)} policy violation(s).[/green]")
+
+        # Show summary if requested
+        if show_summary:
+            display_violation_summary(violations)
+
+        # Export or display
+        if export_format and output_path:
+            if export_format == "json":
+                export_violations_to_json(violations, output_path)
+            elif export_format == "csv":
+                export_violations_to_csv(violations, output_path)
+        elif export_format and not output_path:
+            # Generate default filename
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if export_format == "json":
+                output_path = f"policy_violations_{timestamp}.json"
+                export_violations_to_json(violations, output_path)
+            elif export_format == "csv":
+                output_path = f"policy_violations_{timestamp}.csv"
+                export_violations_to_csv(violations, output_path)
+        else:
+            # Display as table
+            display_violations_table(violations)
+
         sys.exit(0)
 
     else:
