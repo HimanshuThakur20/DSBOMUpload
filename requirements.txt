@@ -4,3 +4,4 @@ jsonschema
 pyyaml
 requests
 packaging
+urllib3

@@ -2,7 +2,7 @@
 
 import sys
 import os
-from project import get_or_create_project, get_projects, get_latest_version
+from project import get_or_create_project, get_projects, get_latest_version, get_latest_version_projects
 from bom import upload_bom
 from sbom_validator import validate_bom_file
 from utils.cli_utils import ask_yes_no
@@ -21,7 +21,8 @@ from policy_violations import (
     export_violations_to_json,
     export_violations_to_csv,
     get_policies,
-    display_policies_table
+    display_policies_table,
+    enrich_violations_with_tags
 )
 
 console = Console()
@@ -58,6 +59,7 @@ def main():
         console.print("      [dim]--format <json|csv>[/dim]               Export format (default: display table)")
         console.print("      [dim]--output <path>[/dim]                   Output file path")
         console.print("      [dim]--include-suppressed[/dim]              Include suppressed violations")
+        console.print("      [dim]--latest-only[/dim]                     Export violations only for latest version of each project")
         console.print("      [dim]--summary[/dim]                         Show summary statistics")
         sys.exit(1)
 
@@ -68,7 +70,7 @@ def main():
     # ============================================================
     if command == "list-projects":
         projects = get_projects() or []
-        projects = sorted(projects, key=lambda x: x["name"].lower()) if projects else []
+        projects = sorted(projects, key=lambda x: x.get("name", "").lower()) if projects else []
         if not projects:
             console.print("[red]No projects found.[/red]")
             sys.exit(0)
@@ -78,7 +80,7 @@ def main():
         table.add_column("Version", style="green")
         table.add_column("UUID", style="yellow")
         for p in projects:
-            table.add_row(p["name"], p["version"], p["uuid"])
+            table.add_row(p.get("name", "N/A"), p.get("version", "N/A"), p.get("uuid", "N/A"))
         console.print(table)
         sys.exit(0)
 
@@ -418,6 +420,7 @@ def main():
         output_path = None
         include_suppressed = "--include-suppressed" in sys.argv
         show_summary = "--summary" in sys.argv
+        latest_only = "--latest-only" in sys.argv
 
         if "--project" in sys.argv:
             idx = sys.argv.index("--project")
@@ -443,8 +446,36 @@ def main():
         if project_uuid:
             console.print(f"[dim]Filtering by project: {project_uuid}[/dim]")
             violations = get_project_policy_violations(project_uuid, suppressed=include_suppressed)
+            # Enrich with tags from all projects
+            all_projects = get_projects()
+            projects_with_tags = {p.get("uuid"): p for p in all_projects if p.get("uuid")}
+            violations = enrich_violations_with_tags(violations, projects_with_tags)
+        elif latest_only:
+            # Get violations only for the latest version of each project
+            console.print("[dim]Fetching violations for latest version of each project only...[/dim]")
+            latest_projects = get_latest_version_projects()
+            console.print(f"[dim]Found {len(latest_projects)} unique projects (latest versions)[/dim]")
+            
+            # Build a dictionary of projects with tags for enrichment
+            projects_with_tags = {p.get("uuid"): p for p in latest_projects if p.get("uuid")}
+            
+            violations = []
+            for idx, proj in enumerate(latest_projects, 1):
+                proj_uuid = proj.get("uuid")
+                proj_name = proj.get("name", "Unknown")
+                proj_version = proj.get("version", "N/A")
+                console.print(f"[dim]  ({idx}/{len(latest_projects)}) Fetching violations for {proj_name} v{proj_version}...[/dim]")
+                proj_violations = get_project_policy_violations(proj_uuid, suppressed=include_suppressed)
+                violations.extend(proj_violations)
+            
+            # Enrich violations with project tags
+            violations = enrich_violations_with_tags(violations, projects_with_tags)
         else:
             violations = get_all_policy_violations(suppressed=include_suppressed)
+            # Enrich with tags from all projects
+            all_projects = get_projects()
+            projects_with_tags = {p.get("uuid"): p for p in all_projects if p.get("uuid")}
+            violations = enrich_violations_with_tags(violations, projects_with_tags)
 
         if not violations:
             console.print("[yellow]No policy violations found.[/yellow]")
