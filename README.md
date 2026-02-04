@@ -58,22 +58,27 @@ Portfolio Manager
 
 Your tool reads settings from environment variables:
 
-DTRACK_BASE_URL=https://your-dependency-track-url
+DTRACK_URL=https://your-dependency-track-url
 DTRACK_API_KEY=your_api_key_here
+DTRACK_SSL_VERIFY=false  # Optional: disable SSL verification for self-signed certificates
 
 
 You can set them permanently:
 
 Linux / macOS
-export DTRACK_BASE_URL="https://dtrack.company.com"
+export DTRACK_URL="https://dtrack.company.com"
 export DTRACK_API_KEY="ABC123APIKEY"
 
 Windows PowerShell
-setx DTRACK_BASE_URL "https://dtrack.company.com"
+$env:DTRACK_URL="https://dtrack.company.com"
+$env:DTRACK_API_KEY="ABC123APIKEY"
+
+# Or set permanently:
+setx DTRACK_URL "https://dtrack.company.com"
 setx DTRACK_API_KEY "ABC123APIKEY"
 
 Windows CMD
-set DTRACK_BASE_URL=https://dtrack.company.com
+set DTRACK_URL=https://dtrack.company.com
 set DTRACK_API_KEY=ABC123APIKEY
 
 
@@ -142,8 +147,9 @@ deps.dev reality checks (with planned fallbacks: osv.dev, Libraries.io, Maven Ce
 
 🧩 7. Environment Variable Summary
 Variable	Description
-DTRACK_BASE_URL	URL of Dependency-Track (must be accessible)
+DTRACK_URL	URL of Dependency-Track (must be accessible)
 DTRACK_API_KEY	API key with required permissions
+DTRACK_SSL_VERIFY	Set to "false" to disable SSL verification (for self-signed certificates)
 (future) VALIDATOR_POLICY_FILE	Override default policy.yaml
 (future) VALIDATOR_DISABLE_DEPSDEV	Skip deps.dev checks
 📁 8. Optional: Config via .env file
@@ -225,6 +231,14 @@ NuGet
 
 List existing projects
 
+List policies
+
+Export policy violations (CSV/JSON)
+
+Filter violations by project or latest versions only
+
+Include project tags in exports
+
 Auto-bump project version
 
 Create new project
@@ -256,7 +270,9 @@ packaging
 Project Structure
 DSBOMUpload/
   main.py
+  config.py
   sbom_validator.py
+  policy_violations.py
   validator/
     schema_validator.py
     semantic_validator.py
@@ -298,6 +314,80 @@ Detect JSON/XML
 Load SBOM safely
 
 Extract specVersion
+
+3. List Policies (Dependency-Track)
+python -m main list-policies
+
+
+Displays all policies configured in Dependency-Track.
+
+4. Export Policy Violations (Dependency-Track)
+python -m main export-violations [options]
+
+
+Export policy violations from Dependency-Track to CSV or JSON format.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--project <uuid>` | Filter violations by specific project UUID |
+| `--format <json\|csv>` | Export format (default: display table) |
+| `--output <path>` | Output file path |
+| `--include-suppressed` | Include suppressed violations |
+| `--latest-only` | Export violations only for the latest version of each project |
+| `--summary` | Show summary statistics |
+
+**Examples:**
+
+```bash
+# Display all violations as a table
+python -m main export-violations
+
+# Export all violations to CSV
+python -m main export-violations --format csv --output violations.csv
+
+# Export violations for latest project versions only
+python -m main export-violations --latest-only --format csv --output latest_violations.csv
+
+# Export violations for a specific project
+python -m main export-violations --project <project-uuid> --format json --output project_violations.json
+
+# Show summary statistics
+python -m main export-violations --summary
+
+# Include suppressed violations
+python -m main export-violations --include-suppressed --format csv --output all_violations.csv
+```
+
+**CSV Export Columns:**
+
+The exported CSV includes the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `violation_uuid` | Unique identifier for the violation |
+| `violation_type` | Type of violation (e.g., SECURITY) |
+| `violation_state` | Analysis state (NOT_SET, APPROVED, etc.) |
+| `suppressed` | Whether the violation is suppressed |
+| `policy_name` | Name of the policy that was violated |
+| `policy_uuid` | UUID of the policy |
+| `policy_violation_state` | Policy violation state (INFO, WARN, FAIL) |
+| `condition_uuid` | UUID of the policy condition |
+| `condition_subject` | Subject of the condition (e.g., EPSS) |
+| `condition_operator` | Operator used in the condition |
+| `condition_value` | Value used in the condition |
+| `component_uuid` | UUID of the affected component |
+| `component_name` | Name of the affected component |
+| `component_version` | Version of the affected component |
+| `component_group` | Group/namespace of the component |
+| `component_purl` | Package URL of the component |
+| `component_cpe` | CPE identifier (if available) |
+| `component_license` | License of the component |
+| `project_uuid` | UUID of the project |
+| `project_name` | Name of the project |
+| `project_version` | Version of the project |
+| `tag1` - `tag10` | Project tags (up to 10 separate columns) |
 
 PHASE 2 — Schema Validation
 

@@ -5,7 +5,7 @@ import base64
 import json
 import requests
 from rich.console import Console
-from config import get_api_headers, get_dtrack_url
+from config import get_api_headers, get_dtrack_url, get_ssl_verify
 
 console = Console()
 
@@ -39,7 +39,7 @@ def upload_bom(project_uuid, bom_file):
     }
 
     # Send as JSON request
-    response = requests.put(url, headers={**headers, "Content-Type": "application/json"}, json=payload)
+    response = requests.put(url, headers={**headers, "Content-Type": "application/json"}, json=payload, verify=get_ssl_verify())
 
     if response.status_code != 200:
         console.print(f"[red]❌ Upload failed: HTTP {response.status_code}[/red]")

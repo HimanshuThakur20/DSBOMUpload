@@ -9,7 +9,7 @@ import json
 import csv
 import os
 from datetime import datetime
-from config import get_api_headers, get_dtrack_url
+from config import get_api_headers, get_dtrack_url, get_ssl_verify
 from rich.console import Console
 from rich.table import Table, box
 
@@ -37,7 +37,7 @@ def get_all_policy_violations(suppressed: bool = False):
         params["pageNumber"] = page_number
         params["pageSize"] = page_size
         
-        response = requests.get(url, headers=get_api_headers(), params=params)
+        response = requests.get(url, headers=get_api_headers(), params=params, verify=get_ssl_verify())
         
         if response.status_code == 200:
             violations = response.json()
@@ -79,7 +79,7 @@ def get_project_policy_violations(project_uuid: str, suppressed: bool = False):
         params["pageNumber"] = page_number
         params["pageSize"] = page_size
         
-        response = requests.get(url, headers=get_api_headers(), params=params)
+        response = requests.get(url, headers=get_api_headers(), params=params, verify=get_ssl_verify())
         
         if response.status_code == 200:
             violations = response.json()
@@ -112,7 +112,7 @@ def get_component_policy_violations(component_uuid: str, suppressed: bool = Fals
     url = f"{get_dtrack_url()}api/v1/violation/component/{component_uuid}"
     params = {"suppressed": str(suppressed).lower()}
     
-    response = requests.get(url, headers=get_api_headers(), params=params)
+    response = requests.get(url, headers=get_api_headers(), params=params, verify=get_ssl_verify())
     
     if response.status_code == 200:
         return response.json()
@@ -122,12 +122,47 @@ def get_component_policy_violations(component_uuid: str, suppressed: bool = Fals
         return []
 
 
-def _flatten_violation(violation: dict) -> dict:
+def enrich_violations_with_tags(violations: list, projects_with_tags: dict) -> list:
+    """
+    Enrich violations with project tags from a pre-fetched projects dictionary.
+    
+    Args:
+        violations: List of policy violation objects.
+        projects_with_tags: Dictionary mapping project UUID to project data with tags.
+    
+    Returns:
+        List of violations with enriched tag information.
+    """
+    for violation in violations:
+        component = violation.get("component", {})
+        project = component.get("project", {})
+        
+        if not project:
+            project = violation.get("project", {})
+        
+        proj_uuid = project.get("uuid", "")
+        
+        # If we have this project in our pre-fetched data with tags
+        if proj_uuid and proj_uuid in projects_with_tags:
+            proj_data = projects_with_tags[proj_uuid]
+            tags = proj_data.get("tags", [])
+            
+            # Update the project in the violation with tags
+            if "project" in component:
+                component["project"]["tags"] = tags
+            elif "project" in violation:
+                violation["project"]["tags"] = tags
+    
+    return violations
+
+
+def _flatten_violation(violation: dict, max_tags: int = 10) -> dict:
     """
     Flatten a policy violation object for export.
     
     Args:
         violation: Raw violation object from Dependency-Track API.
+        max_tags: Maximum number of tag columns to include (default: 10).
     
     Returns:
         Flattened dictionary suitable for CSV/JSON export.
@@ -137,7 +172,15 @@ def _flatten_violation(violation: dict) -> dict:
     policy = policy_condition.get("policy", {})
     project = component.get("project", {})
     
-    return {
+    # Also check for project at violation level (some API responses have it there)
+    if not project:
+        project = violation.get("project", {})
+    
+    # Extract tags - tags is a list of tag objects with 'name' field
+    tags_list = project.get("tags", [])
+    tag_names = [tag.get("name", "") for tag in tags_list if tag.get("name")]
+    
+    result = {
         "violation_uuid": violation.get("uuid", ""),
         "violation_type": violation.get("type", ""),
         "violation_state": violation.get("analysis", {}).get("state") if violation.get("analysis") else "NOT_SET",
@@ -168,6 +211,13 @@ def _flatten_violation(violation: dict) -> dict:
         "project_name": project.get("name", ""),
         "project_version": project.get("version", ""),
     }
+    
+    # Add tag columns (tag1, tag2, tag3, etc.)
+    for i in range(max_tags):
+        tag_key = f"tag{i + 1}"
+        result[tag_key] = tag_names[i] if i < len(tag_names) else ""
+    
+    return result
 
 
 def display_violations_table(violations: list):
@@ -273,7 +323,7 @@ def get_policies():
     """
     url = f"{get_dtrack_url()}api/v1/policy"
     
-    response = requests.get(url, headers=get_api_headers())
+    response = requests.get(url, headers=get_api_headers(), verify=get_ssl_verify())
     
     if response.status_code == 200:
         return response.json()
