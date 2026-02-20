@@ -1,7 +1,13 @@
-# For making HTTP requests to Dependency-Track API
-requests==2.31.0
+# SBOM Upload - Dependency-Track CLI Tool
+# Python 3.11+ required
 
-# For optional pretty console output
-rich==13.7.0
+# HTTP client for Dependency-Track API communication
+requests>=2.31.0
 
-packaging==24.2
+# Beautiful terminal output formatting (tables, colors, etc.)
+rich>=13.7.0
+
+# Version parsing and comparison for auto version bumping
+packaging>=24.2
+
+# Note: urllib3 is a dependency of requests (SSL warning suppression)
