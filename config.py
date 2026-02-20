@@ -1,5 +1,9 @@
 # config.py
 import os
+import urllib3
+
+# Disable SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_dtrack_url():
     """Gets the Dependency-Track base URL from the environment."""
@@ -9,6 +13,10 @@ def get_dtrack_url():
     if not url.endswith("/"):
         url += "/"
     return url
+
+def get_ssl_verify():
+    """Returns whether to verify SSL certificates. Set DTRACK_SSL_VERIFY=false to disable."""
+    return os.getenv("DTRACK_SSL_VERIFY", "false").lower() != "false"
 
 def get_api_key():
     """Gets the Dependency-Track API key from the environment."""

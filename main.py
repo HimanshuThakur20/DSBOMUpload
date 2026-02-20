@@ -1,6 +1,6 @@
 # main.py
 import sys
-from project import get_or_create_project, get_projects, get_latest_version
+from project import get_or_create_project, get_projects, get_latest_version, export_projects_to_csv
 from bom import upload_bom
 from utils.cli_utils import ask_yes_no
 from utils.file_utils import file_exists
@@ -27,6 +27,10 @@ def main():
         console.print("[bold]Commands:[/bold]")
         console.print("  [cyan]list-projects[/cyan]                List all projects in Dependency-Track")
         console.print("  [cyan]upload --file <path>[/cyan]         Upload a BOM file")
+        console.print("  [cyan]export-projects[/cyan]              Export all projects with tags to CSV")
+        console.print("    [dim]--output <path>[/dim]             Output file path (default: projects.csv)")
+        console.print("    [dim]--latest-only[/dim]               Export only latest version of each project")
+        console.print("    [dim]--max-tags <n>[/dim]              Maximum number of tag columns (default: 10)")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -101,6 +105,34 @@ def main():
         upload_bom(project["uuid"], bom_file)
 
         console.print(f"[green]✅ BOM uploaded successfully![/green] → [cyan]{proj_name}[/cyan] (version: [bold]{new_version}[/bold])")
+
+    elif command == "export-projects":
+        # Parse options
+        output_file = "projects.csv"
+        latest_only = "--latest-only" in sys.argv
+        max_tags = 10
+
+        if "--output" in sys.argv:
+            output_index = sys.argv.index("--output") + 1
+            if output_index < len(sys.argv):
+                output_file = sys.argv[output_index]
+
+        if "--max-tags" in sys.argv:
+            max_tags_index = sys.argv.index("--max-tags") + 1
+            if max_tags_index < len(sys.argv):
+                try:
+                    max_tags = int(sys.argv[max_tags_index])
+                except ValueError:
+                    console.print("[red]Error:[/red] --max-tags must be a number")
+                    sys.exit(1)
+
+        console.print(f"[cyan]Exporting projects to {output_file}...[/cyan]")
+        if latest_only:
+            console.print("[dim]Using latest version only for each project[/dim]")
+        
+        count = export_projects_to_csv(output_file=output_file, latest_only=latest_only, max_tags=max_tags)
+        if count > 0:
+            console.print(f"[green]✅ Successfully exported {count} projects with tags![/green]")
 
     else:
         console.print(f"[red]Unknown command:[/red] {command}")
