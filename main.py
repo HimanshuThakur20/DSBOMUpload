@@ -2,6 +2,7 @@
 import sys
 from project import get_or_create_project, get_projects, get_latest_version
 from bom import upload_bom
+from bulk_upload import bulk_upload_host, preview_host_parsing
 from utils.cli_utils import ask_yes_no
 from utils.file_utils import file_exists
 from rich.console import Console
@@ -27,6 +28,15 @@ def main():
         console.print("[bold]Commands:[/bold]")
         console.print("  [cyan]list-projects[/cyan]                List all projects in Dependency-Track")
         console.print("  [cyan]upload --file <path>[/cyan]         Upload a BOM file")
+        console.print("  [cyan]bulk-upload-host[/cyan]             Bulk upload Host category SBOMs")
+        console.print("      --folder <path>              Folder containing Host SBOMs (with subfolders)")
+        console.print("      --tags <excel_path>          Excel file with account number to tags mapping")
+        console.print("      [--version <ver>]            Project version (default: 1.0)")
+        console.print("      [--dry-run]                  Simulate upload without actually uploading")
+        console.print("  [cyan]preview-host[/cyan]                 Preview Host SBOM parsing")
+        console.print("      --folder <path>              Folder containing Host SBOMs")
+        console.print("      --tags <excel_path>          Excel file with tags")
+        console.print("      [--limit <n>]                Number of files to preview (default: 10)")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -101,6 +111,60 @@ def main():
         upload_bom(project["uuid"], bom_file)
 
         console.print(f"[green]✅ BOM uploaded successfully![/green] → [cyan]{proj_name}[/cyan] (version: [bold]{new_version}[/bold])")
+
+    elif command == "bulk-upload-host":
+        # Parse arguments for bulk upload
+        if "--folder" not in sys.argv or "--tags" not in sys.argv:
+            console.print("[red]Error:[/red] You must provide both --folder and --tags arguments")
+            console.print("Usage: python main.py bulk-upload-host --folder <path> --tags <excel_path> [--version <ver>] [--dry-run]")
+            sys.exit(1)
+        
+        folder_index = sys.argv.index("--folder") + 1
+        tags_index = sys.argv.index("--tags") + 1
+        
+        sbom_folder = sys.argv[folder_index]
+        tags_excel = sys.argv[tags_index]
+        
+        # Optional version argument
+        proj_version = "1.0"
+        if "--version" in sys.argv:
+            version_index = sys.argv.index("--version") + 1
+            proj_version = sys.argv[version_index]
+        
+        # Optional dry-run flag
+        dry_run = "--dry-run" in sys.argv
+        
+        # Optional limit argument
+        limit = 0
+        if "--limit" in sys.argv:
+            limit_index = sys.argv.index("--limit") + 1
+            limit = int(sys.argv[limit_index])
+        
+        if dry_run:
+            console.print("[yellow]DRY RUN MODE - No actual uploads will be performed[/yellow]")
+        
+        bulk_upload_host(sbom_folder, tags_excel, version=proj_version, dry_run=dry_run, limit=limit)
+
+    elif command == "preview-host":
+        # Parse arguments for preview
+        if "--folder" not in sys.argv or "--tags" not in sys.argv:
+            console.print("[red]Error:[/red] You must provide both --folder and --tags arguments")
+            console.print("Usage: python main.py preview-host --folder <path> --tags <excel_path> [--limit <n>]")
+            sys.exit(1)
+        
+        folder_index = sys.argv.index("--folder") + 1
+        tags_index = sys.argv.index("--tags") + 1
+        
+        sbom_folder = sys.argv[folder_index]
+        tags_excel = sys.argv[tags_index]
+        
+        # Optional limit argument
+        limit = 10
+        if "--limit" in sys.argv:
+            limit_index = sys.argv.index("--limit") + 1
+            limit = int(sys.argv[limit_index])
+        
+        preview_host_parsing(sbom_folder, tags_excel, limit=limit)
 
     else:
         console.print(f"[red]Unknown command:[/red] {command}")

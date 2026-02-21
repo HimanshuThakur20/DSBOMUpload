@@ -5,3 +5,6 @@ requests==2.31.0
 rich==13.7.0
 
 packaging==24.2
+
+# For reading Excel files (bulk upload tags)
+openpyxl==3.1.2
