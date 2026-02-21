@@ -1,14 +1,18 @@
 # project.py
 
 import requests
+import urllib3
 from config import get_api_headers, get_dtrack_url
+
+# Disable SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_projects():
     """
     Fetch all projects from Dependency-Track.
     """
     url = f"{get_dtrack_url()}api/v1/project"
-    response = requests.get(url, headers=get_api_headers())
+    response = requests.get(url, headers=get_api_headers(), verify=False)
     
     if response.status_code == 200:
         return response.json()

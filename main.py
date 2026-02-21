@@ -3,6 +3,7 @@ import sys
 from project import get_or_create_project, get_projects, get_latest_version
 from bom import upload_bom
 from bulk_upload import bulk_upload_host, preview_host_parsing
+from export_projects_to_excel import export_projects_to_excel
 from utils.cli_utils import ask_yes_no
 from utils.file_utils import file_exists
 from rich.console import Console
@@ -27,6 +28,7 @@ def main():
         console.print("[bold yellow]Usage:[/bold yellow] python main.py [command] [options]")
         console.print("[bold]Commands:[/bold]")
         console.print("  [cyan]list-projects[/cyan]                List all projects in Dependency-Track")
+        console.print("  [cyan]export-projects-excel[/cyan]        Export all projects with details to Excel")
         console.print("  [cyan]upload --file <path>[/cyan]         Upload a BOM file")
         console.print("  [cyan]bulk-upload-host[/cyan]             Bulk upload Host category SBOMs")
         console.print("      --folder <path>              Folder containing Host SBOMs (with subfolders)")
@@ -60,6 +62,15 @@ def main():
             table.add_row(project['name'], project['version'], project['uuid'])
 
         console.print(table)
+
+    elif command == "export-projects-excel":
+        console.print("[bold cyan]Starting Excel export of all projects...[/bold cyan]")
+        success = export_projects_to_excel()
+        if success:
+            console.print("[bold green]Excel export completed successfully![/bold green]")
+        else:
+            console.print("[bold red]Excel export failed![/bold red]")
+            sys.exit(1)
 
     elif command == "upload":
         if "--file" not in sys.argv:
